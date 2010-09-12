@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+    <head>
+        <title>WebSocket Server Test</title>
+        <meta charset="UTF-8">
+        <script type="text/javascript">
+        web_socket = new WebSocket("ws://127.0.0.1:8080/trial", "Elements")
+
+        web_socket.onclose = function(e) {
+            console.log("WebSocket Closed")
+            console.log(e)
+        }
+        web_socket.onopen = function(e) {
+            console.log("WebSocket Open")
+            console.log(e)
+        }
+        web_socket.onmessage = function(e) {
+            console.log("WebSocket Message")
+            console.log(e)
+        }
+        </script>
+    </head>
+    <body>
+        <h1>WebSocket Server Test</h1>
+    </body>
+</html>
+
