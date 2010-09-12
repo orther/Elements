@@ -1,0 +1,74 @@
+#!/usr/bin/env python
+#
+# This file is part of Elements.
+# Copyright (c) 2010 Sean Kerr. All rights reserved.
+#
+# The full license is available in the LICENSE file that was distributed with this source code.
+#
+# Author: Brandon Orther <brandon.orther@think-done.com>
+
+import os
+import sys
+import time
+
+sys.path.append(os.path.abspath("../lib"))
+
+from elements.async.impl.web_socket import WebSocketClient
+from elements.async.impl.web_socket import WebSocketServer
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+class ExampleClient (WebSocketClient):
+
+    def handle_dispatch (self):
+        """
+        Dispatch the request, which for all intents and purposes of this example does some simple send and receive of
+        data.
+        """
+        protocol = None
+        if "HTTP_SEC_WEBSOCKET_PROTOCOL" in self.in_headers:
+            protocol = self.in_headers["HTTP_SEC_WEBSOCKET_PROTOCOL"]
+
+        if protocol in ("Elements-test",):
+            # compose the response
+            self.compose_headers(protocol)
+
+            # flush the response
+            self.flush()
+
+            # Push Data
+            for header in self.in_headers.items():
+                self.write("\x00%s|%s\xFF" % header)
+
+            self.flush()
+
+        else:
+            # Invalid protocol request
+            raise HttpException("Bad Request", HTTP_400)
+
+    # ------------------------------------------------------------------------------------------------------------------
+
+    def handle_message (self, message):
+        """
+        Handle an incoming WebSocket message.
+
+        @param message (str)
+        """
+        print "handle_message", (type(message), message)
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+class ExampleServer (WebSocketServer):
+
+    def handle_client (self, client_socket, client_address, server_address):
+        """
+        Register a new ExampleClient instance.
+        """
+
+        self.register_client(ExampleClient(client_socket, client_address, self, server_address))
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+# start the server
+ExampleServer(hosts=[("0.0.0.0", 8080)]).start()
+
