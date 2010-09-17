@@ -111,6 +111,10 @@ class Server:
         self._event_manager_register   = self._event_manager.register
         self._event_manager_unregister = self._event_manager.unregister
 
+        # update this server with the proper events
+        self.EVENT_READ   = self._event_manager.EVENT_READ
+        self.EVENT_WRITE  = self._event_manager.EVENT_WRITE
+
         # update the client module with the proper events
         client.EVENT_LINGER = self._event_manager.EVENT_LINGER
         client.EVENT_READ   = self._event_manager.EVENT_READ
@@ -213,7 +217,7 @@ class Server:
 
     def handle_channels (self, pid, sockets):
         """
-        This callback is executed when channels need to be prepared for a worker process.
+        This callback will be executed when channels need to be prepared for a worker process.
 
         @param pid     (int)  The process id.
         @param sockets (list) A list of channel sockets for process communication.
@@ -249,7 +253,7 @@ class Server:
 
     def handle_exception (self, exception, client=None):
         """
-        This callback is executed when an uncaught exception is found while processing a client.
+        This callback will be executed when an uncaught exception is found while processing a client.
 
         @param exception (Exception) The exception.
         @param client    (Client)    The Client instance that was active during the exception.
@@ -275,8 +279,7 @@ class Server:
 
     def handle_init (self):
         """
-        This callback is executed during the start of the process immediately before the processing loop starts. This
-        will be executed only once per process.
+        This callback will be executed during the start of the process immediately before the processing loop starts.
         """
 
         pass
@@ -285,7 +288,7 @@ class Server:
 
     def handle_loop (self):
         """
-        This callback is executed at the top of each event manager loop.
+        This callback will be executed at the top of each event manager loop.
 
         @return (object) A list of modified clients (or an empty list), if processing should continue, otherwise False.
         """
@@ -296,7 +299,7 @@ class Server:
 
     def handle_signal (self, code, frame):
         """
-        This callback is executed when a signal has been received.
+        This callback will be executed when a signal has been received.
 
         @param code  (int)    The signal code.
         @param frame (object) The stack frame.
@@ -334,20 +337,24 @@ class Server:
         now          = time()
         minimum_time = now - self._timeout
 
+        EVENT_READ = self.EVENT_READ
+
         # iterate all clients and find the ones that are timed out/idle
         # execute the timeout callback and determine what to do
         for client in filter(lambda x: x._last_access_time < minimum_time and not x._is_channel and not x._is_host,
                              self._clients.values()):
 
-            client._events = 0
-
             if not client.handle_timeout(self._timeout):
+                # handle timeout callback cleared events--so, we'll forcefully unregister the client
                 self.unregister_client(client)
 
                 continue
 
+            # update the client time
             client._last_access_time = now
 
+            # client is good and they're being appended to a list that will all have their fileno's updated in the
+            # event manager with their new events
             clients.append(client)
 
         return clients
@@ -356,7 +363,7 @@ class Server:
 
     def handle_worker_exited (self, pid, status):
         """
-        This callback is executed when a worker process has exited.
+        This callback will be executed when a worker process has exited.
 
         @param pid    (int) The process id.
         @param status (int) The exit status.
@@ -768,6 +775,8 @@ class Server:
     def __register_channels (self, channels):
         """
         Register worker channels.
+
+        @param channels (list) The list of channels.
         """
 
         if type(channels) in (list, tuple):
