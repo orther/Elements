@@ -40,7 +40,8 @@ class ExampleClient (WebSocketClient):
             for header in self.in_headers.items():
                 self.write("\x00%s|%s\xFF" % header)
 
-            self.flush()
+            #self.flush()
+
 
         else:
             # Invalid protocol request

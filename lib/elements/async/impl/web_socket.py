@@ -186,12 +186,8 @@ class WebSocketClient (Client):
         key2 = self.extract_key_number(self.in_headers['HTTP_SEC_WEBSOCKET_KEY2'])
         key3 = data
 
-        print "handle_header_input:", (key1, key2, key3)
-
         key = struct.pack(">II", key1, key2) + key3
         self.response_token = hashlib.md5(key).digest()
-
-        print "handshake_response_token:", (type(self.response_token), self.response_token)
 
     # ------------------------------------------------------------------------------------------------------------------
 
@@ -216,11 +212,9 @@ class WebSocketClient (Client):
 
                 self.read_length(8, self.handle_response_token)
 
-                self.read_delimiter("\xFF", self.handle_message) #, self._server._max_headers_length)
-
-                print "WebSocket Request", data
                 self.handle_dispatch()
 
+                self.read_delimiter("\xFF", self.handle_message, self._server._max_headers_length)
 
             else:
                 raise HttpException("Bad Request", HTTP_400)
@@ -308,7 +302,7 @@ class WebSocketClient (Client):
         """
         # allowing another request
         self.clear_write_buffer()
-        self.read_delimiter("\r\n", self.handle_request, self._server._max_request_length)
+        #self.read_delimiter("\r\n", self.handle_request, self._server._max_request_length)
 
 # ----------------------------------------------------------------------------------------------------------------------
 
