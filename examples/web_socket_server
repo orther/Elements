@@ -20,28 +20,17 @@ from elements.async.impl.web_socket import WebSocketServer
 
 class ExampleClient (WebSocketClient):
 
-    def handle_dispatch (self):
+    def handle_connect (self):
         """
-        Dispatch the request, which for all intents and purposes of this example does some simple send and receive of
-        data.
+        Return response header to complete the WebSocket handshake and begin connection.
         """
-        protocol = None
-        if "HTTP_SEC_WEBSOCKET_PROTOCOL" in self.in_headers:
-            protocol = self.in_headers["HTTP_SEC_WEBSOCKET_PROTOCOL"]
 
-        if protocol in ("Elements-test",):
+        if self.in_web_socket_protocol in ("Elements-test",):
             # compose the response
-            self.compose_headers(protocol)
+            self.compose_headers(self.in_web_socket_protocol)
 
             # flush the response
             self.flush()
-
-            # Push Data
-            for header in self.in_headers.items():
-                self.write("\x00%s|%s\xFF" % header)
-
-            #self.flush()
-
 
         else:
             # Invalid protocol request
@@ -55,7 +44,21 @@ class ExampleClient (WebSocketClient):
 
         @param message (str)
         """
-        print "handle_message", (type(message), message)
+        if message == "CONN_INFO":
+            # Send connection info
+            self.write_message("RESET|RESET")
+            self.write_message("Client IP|%s"        % self._client_address[0])
+            self.write_message("Client Port|%s"      % self._client_address[1])
+            self.write_message("File Descriptor|%s"  % self._fileno)
+            self.write_message("Last Access Time|%s" % self._last_access_time)
+
+        elif message == "CUR_TIME":
+            # Print current time
+            self.write_message("Current Time|%s" % time.time())
+
+        else:
+            # Print message upper cased
+            self.write_message("Upper Case|%s" % message.upper())
 
 # ----------------------------------------------------------------------------------------------------------------------
 

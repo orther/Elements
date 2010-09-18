@@ -95,7 +95,7 @@ class WebSocketClient (Client):
         @param server_address (tuple)  A two-part tuple containing the server ip and port to which the client has
                                        made a connection.
         """
-        self.protocol = None
+        self.in_web_socket_protocol = None
 
         Client.__init__(self, client_socket, client_address, server, server_address)
 
@@ -105,11 +105,11 @@ class WebSocketClient (Client):
 
     def _handle_message (self, framed_message):
         """
-        This removes the frame from a WebSocket message passes it to self.handle_message
+        This removes the frame from a WebSocket message and then passes it to self.handle_message and then starts
+        listening for the next WebSocket message.
         """
         self.handle_message(framed_message[1:-1])
 
-        # Listen for next message
         self.listen_for_message()
 
     # ------------------------------------------------------------------------------------------------------------------
@@ -161,12 +161,13 @@ class WebSocketClient (Client):
 
     # ------------------------------------------------------------------------------------------------------------------
 
-    def handle_dispatch (self):
+    def handle_connect (self):
         """
-        This callback is executed when the request has been parsed and needs dispatched to a handler.
+        This callback is executed when the request has been parsed and a response header is needed to complete the
+        WebSocket connection.
         """
 
-        raise ClientException("WebSocketServer.handle_dispatch() must be overridden")
+        raise ClientException("WebSocketServer.handle_connect() must be overridden")
 
     # ------------------------------------------------------------------------------------------------------------------
 
@@ -215,11 +216,12 @@ class WebSocketClient (Client):
                in_headers["HTTP_CONNECTION"] == "Upgrade":
 
                 if "HTTP_SEC_WEBSOCKET_PROTOCOL" in self.in_headers:
-                    self.protocol = in_headers["HTTP_SEC_WEBSOCKET_PROTOCOL"]
+                    self.in_web_socket_protocol = in_headers["HTTP_SEC_WEBSOCKET_PROTOCOL"]
 
+                # Read in 3rd security key and build response token
                 self.read_length(8, self.handle_response_token)
 
-                self.handle_dispatch()
+                self.handle_connect()
 
                 self.listen_for_message()
 
@@ -349,11 +351,9 @@ class WebSocketServer (Server):
 
         Server.__init__(self, **kwargs)
 
-        self._gmt_offset         = gmt_offset
         self._max_headers_length = max_headers_length
         self._max_request_length = max_request_length
         self._max_message_length = max_message_length
-        self._upload_dir         = upload_dir
 
     # ------------------------------------------------------------------------------------------------------------------
 
