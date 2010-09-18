@@ -8,23 +8,12 @@
 import hashlib
 import string
 import struct
-import urlparse
 
 from elements.core            import elements
 from elements.core.exception  import ClientException
-from elements.core.exception  import HttpException
 from elements.core.exception  import ServerException
 from elements.async.impl.http import HttpClient
 from elements.async.impl.http import HttpServer
-from elements.async.server    import Server
-
-# ----------------------------------------------------------------------------------------------------------------------
-# RESPONSE CODES
-# ----------------------------------------------------------------------------------------------------------------------
-
-HTTP_101 = "101 Switching Protocols"
-HTTP_400 = "400 Bad Request"
-HTTP_500 = "500 Internal Server Error"
 
 # ----------------------------------------------------------------------------------------------------------------------
 
