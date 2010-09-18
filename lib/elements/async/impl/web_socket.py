@@ -3,7 +3,7 @@
 #
 # The full license is available in the LICENSE file that was distributed with this source code.
 #
-# Author: Sean Kerr <sean@code-box.org>
+# Author: Brandon Orther <brandon.orther@think-done.com>
 
 import datetime
 import hashlib
