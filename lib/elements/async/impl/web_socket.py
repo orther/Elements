@@ -10,13 +10,12 @@ import string
 import struct
 import urlparse
 
-from elements.core           import elements
-from elements.core.exception import ClientException
-from elements.core.exception import HttpException
-from elements.core.exception import ServerException
-from elements.async.client   import Client
-from elements.async.server   import Server
-
+from elements.core            import elements
+from elements.core.exception  import ClientException
+from elements.core.exception  import HttpException
+from elements.core.exception  import ServerException
+from elements.async.impl.http import *
+from elements.async.server    import Server
 
 # ----------------------------------------------------------------------------------------------------------------------
 # RESPONSE CODES
@@ -28,34 +27,26 @@ HTTP_500 = "500 Internal Server Error"
 
 # ----------------------------------------------------------------------------------------------------------------------
 
-class WebSocketClient (Client):
-
-    def __init__ (self, client_socket, client_address, server, server_address):
-        """
-        Create a new WebSocketClient instance.
-
-        @param client_socket  (socket) The client socket.
-        @param client_address (tuple)  A two-part tuple containing the client ip and port.
-        @param server         (Server) The Server instance within which this WebSocketClient is being created.
-        @param server_address (tuple)  A two-part tuple containing the server ip and port to which the client has
-                                       made a connection.
-        """
-        self.in_web_socket_protocol = None
-
-        Client.__init__(self, client_socket, client_address, server, server_address)
-
-        self.read_delimiter("\r\n", self.handle_request, server._max_request_length)
-
-    # ------------------------------------------------------------------------------------------------------------------
+class WebSocketClient (HttpClient):
 
     def _handle_message (self, framed_message):
         """
-        This removes the frame from a WebSocket message and then passes it to self.handle_message and then starts
+        This removes the frame from the WebSocket message and then passes it to self.handle_message and then starts
         listening for the next WebSocket message.
         """
+
         self.handle_message(framed_message[1:-1])
 
-        self.listen_for_message()
+        self._listen_for_message()
+
+    # ------------------------------------------------------------------------------------------------------------------
+
+    def _listen_for_message (self):
+        """
+        Listen for incoming WebSocket messages.
+        """
+
+        self.read_delimiter("\xFF", self._handle_message, self._server._max_request_length)
 
     # ------------------------------------------------------------------------------------------------------------------
 
@@ -66,20 +57,25 @@ class WebSocketClient (Client):
         @param protocol (str)
         """
 
-        out_headers  = "%s\r\n" % " ".join((self.in_headers["SERVER_PROTOCOL"], self.response_code))
-        out_headers += "Upgrade: WebSocket\r\n"
-        out_headers += "Connection: Upgrade\r\n"
+        if self._is_web_socket_connection:
+            out_headers  = "%s %s\r\n" % (self.in_headers["SERVER_PROTOCOL"], HTTP_101)
+            out_headers += "Upgrade: WebSocket\r\n"
+            out_headers += "Connection: Upgrade\r\n"
 
-        # Allow specific WebSocket Protocol to be set.
-        if protocol:
-            out_headers += "Sec-WebSocket-Protocol: %s\r\n" % protocol
+            # allow specific WebSocket Protocol to be set.
+            if protocol:
+                out_headers += "Sec-WebSocket-Protocol: %s\r\n" % protocol
 
-        out_headers += "Sec-WebSocket-Origin: %s\r\n" % self.in_headers["HTTP_ORIGIN"]
-        out_headers += "Sec-WebSocket-Location: ws://%s%s\r\n\r\n" % (self.in_headers["HTTP_HOST"],
-                                                                      self.in_headers["REQUEST_URI"])
-        out_headers += self.response_token
+            out_headers += "Sec-WebSocket-Origin: %s\r\n" % self.in_headers["HTTP_ORIGIN"]
+            out_headers += "Sec-WebSocket-Location: ws://%s%s\r\n\r\n" % (self.in_headers["HTTP_HOST"],
+                                                                          self.in_headers["REQUEST_URI"])
+            out_headers += self.response_token
 
-        self.write(out_headers)
+            self.write(out_headers)
+
+        else:
+            # compose non-websocket headers
+            HttpClient.compose_headers(self)
 
     # ------------------------------------------------------------------------------------------------------------------
 
@@ -106,13 +102,41 @@ class WebSocketClient (Client):
 
     # ------------------------------------------------------------------------------------------------------------------
 
-    def handle_connect (self):
+    def handle_web_socket_connect (self):
         """
         This callback is executed when the request has been parsed and a response header is needed to complete the
         WebSocket connection.
         """
 
-        raise ClientException("WebSocketServer.handle_connect() must be overridden")
+        raise ClientException("WebSocketServer.handle_web_socket_connect() must be overridden")
+
+    # ------------------------------------------------------------------------------------------------------------------
+
+    def handle_content_negotiation (self):
+        """
+        This callback will be executed after the headers have been parsed and content negotiation needs to start.
+        """
+
+        if self.in_headers["SERVER_PROTOCOL"] == "HTTP/1.1" and self.in_headers["HTTP_UPGRADE"] == "WebSocket" and\
+           self.in_headers["HTTP_CONNECTION"] == "Upgrade":
+
+            self._is_web_socket_connection = True
+
+            if "HTTP_SEC_WEBSOCKET_PROTOCOL" in self.in_headers:
+                self.in_web_socket_protocol = self.in_headers["HTTP_SEC_WEBSOCKET_PROTOCOL"]
+
+            # read in 3rd security key and build response token
+            self.read_length(8, self.handle_response_token)
+
+            self.handle_web_socket_connect()
+
+            self._listen_for_message()
+
+        else:
+            # non-websocket http request
+            self._is_web_socket_connection = False
+
+            HttpClient.handle_content_negotiation(self)
 
     # ------------------------------------------------------------------------------------------------------------------
 
@@ -141,111 +165,16 @@ class WebSocketClient (Client):
 
     # ------------------------------------------------------------------------------------------------------------------
 
-    def handle_headers (self, data):
-        """
-        This callback is executed when the client headers need to be parsed.
-
-        @param data The data that has tentatively been found as the HTTP headers.
-        """
-
-        try:
-            in_headers = self.in_headers
-
-            # parse headers
-            for header in data.rstrip().split("\r\n"):
-                header = header.split(": ")
-
-                in_headers["HTTP_" + header[0].upper().replace("-", "_")] = header[1]
-
-            if in_headers["SERVER_PROTOCOL"] == "HTTP/1.1" and in_headers["HTTP_UPGRADE"] == "WebSocket" and\
-               in_headers["HTTP_CONNECTION"] == "Upgrade":
-
-                if "HTTP_SEC_WEBSOCKET_PROTOCOL" in self.in_headers:
-                    self.in_web_socket_protocol = in_headers["HTTP_SEC_WEBSOCKET_PROTOCOL"]
-
-                # Read in 3rd security key and build response token
-                self.read_length(8, self.handle_response_token)
-
-                self.handle_connect()
-
-                self.listen_for_message()
-
-            else:
-                raise HttpException("Bad Request1", HTTP_400)
-
-        except HttpException:
-            raise
-
-        except Exception as e:
-            print e
-            raise HttpException("Bad Request2", HTTP_400)
-
-    # ------------------------------------------------------------------------------------------------------------------
-
-    def handle_request (self, data):
-        """
-        This callback is executed when the initial request line need to be parsed.
-
-        @param data (str) The data that has tentatively been found as the request line.
-        """
-        self.response_code = HTTP_101
-
-        # parse method, uri and protocol
-        try:
-            data                  = data.rstrip()
-            method, uri, protocol = data.split(" ")
-
-        except:
-            raise HttpException("Bad Request3", HTTP_400)
-
-        # verify method and protocol
-        protocol = protocol.upper()
-
-        if protocol not in ("HTTP/1.1"):
-            raise HttpException("Bad Request4", HTTP_400)
-
-        # initialize headers
-        in_headers = { "HTTP_CONTENT_TYPE": "text/plain",
-                       "REMOTE_ADDR":       self._client_address[0],
-                       "REMOTE_PORT":       self._client_address[1],
-                       "REQUEST_METHOD":    method.upper(),
-                       "REQUEST_URI":       uri,
-                       "SCRIPT_NAME":       uri,
-                       "SERVER_ADDR":       self._server_address[0],
-                       "SERVER_PORT":       self._server_address[1],
-                       "SERVER_PROTOCOL":   protocol }
-
-        # parse querystring
-        pos = uri.find("?")
-
-        if pos > -1:
-            query_string               = uri[pos + 1:]
-            params                     = urlparse.parse_qs(query_string, True)
-            in_headers["QUERY_STRING"] = query_string
-            in_headers["SCRIPT_NAME"]  = uri[:pos]
-
-            for key, value in params.items():
-                if len(value) == 1:
-                    params[key] = value[0]
-
-            self.params = params
-
-        else:
-            self.params = {}
-
-        self.in_headers = in_headers
-
-        # parse headers
-        self.read_delimiter("\r\n\r\n", self.handle_headers, self._server._max_headers_length)
-
-    # ------------------------------------------------------------------------------------------------------------------
-
     def handle_shutdown (self):
         """
         This callback will be executed when this WebSocketServer instance is shutting down.
         """
-        print "Shut down"
-        Client.handle_shutdown(self)
+
+        if self._is_web_socket_connection:
+            print "Web Socket Shut down"
+
+        else:
+            HttpClient.handle_shutdown(self)
 
     # ------------------------------------------------------------------------------------------------------------------
 
@@ -253,17 +182,13 @@ class WebSocketClient (Client):
         """
         This callback will be executed when the entire write buffer has been written.
         """
-        # allowing another request
-        self.clear_write_buffer()
 
-    # ------------------------------------------------------------------------------------------------------------------
+        if self._is_web_socket_connection:
+            # allowing another request
+            self.clear_write_buffer()
 
-    def listen_for_message (self):
-        """
-        Listen for incoming WebSocket messages.
-        """
-
-        self.read_delimiter("\xFF", self._handle_message, self._server._max_message_length)
+        else:
+            HttpClient.handle_write_finished(self)
 
     # ------------------------------------------------------------------------------------------------------------------
 
@@ -273,34 +198,12 @@ class WebSocketClient (Client):
 
         @param message (str)
         """
-        # allowing another request
+
         self.write("\x00%s\xFF" % message)
 
 # ----------------------------------------------------------------------------------------------------------------------
 
-class WebSocketServer (Server):
-
-    def __init__ (self, gmt_offset="-5", upload_dir="/tmp", upload_buffer_size=50000, max_request_length=5000,
-                  max_headers_length=10000, max_message_length=10000, **kwargs):
-        """
-        Create a new WebSocketServer instance.
-
-        @param gmt_offset         (str) The GMT offset of the server.
-        @param upload_dir         (str) The absolute filesystem path to the directory where uploaded files will be
-                                        placed.
-        @param upload_buffer_size (int) The upload buffer size.
-        @param max_request_length (int) The maximum length of the initial request line.
-        @param max_headers_length (int) The maximum length for the headers.
-        @param max_headers_length (int) The maximum length for WebSocket messages received.
-        """
-
-        Server.__init__(self, **kwargs)
-
-        self._max_headers_length = max_headers_length
-        self._max_request_length = max_request_length
-        self._max_message_length = max_message_length
-
-    # ------------------------------------------------------------------------------------------------------------------
+class WebSocketServer (HttpServer):
 
     def handle_client (self, client_socket, client_address, server_address):
         """
@@ -323,20 +226,6 @@ class WebSocketServer (Server):
         @param exception (Exception)       The exception.
         @param client    (WebSocketServer) The WebSocketServer instance that was active during the exception.
         """
+        print "THIS IS A TEST!!!", exception
 
-        Server.handle_exception(self, exception)
-
-        if not client:
-            return
-
-        client.clear_write_buffer()
-
-        if isinstance(exception, HttpException):
-            client.write("HTTP %s\r\nServer: %s\r\n\r\n<h1>%s</h1>" % (exception[1], elements.APP_NAME, exception[0]))
-
-        else:
-            client.write("HTTP 500 Internal Server Error\r\nServer: %s\r\n\r\n<h1>Internal Server Error</h1>" %
-                         elements.APP_NAME)
-
-        client.flush()
-
+        HttpServer.handle_exception(self, exception)
