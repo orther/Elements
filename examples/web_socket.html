@@ -9,20 +9,25 @@
             web_socket = new WebSocket("ws://127.0.0.1:8080/trial", "Elements-test")
 
             web_socket.onclose = function(e) {
-                console.log("WebSocket Closed")
-                console.log(e)
+                // Disable WebSocket Buttons
+                $("#button-get-conn-info, #button-get-cur-time, #button-close").attr("disabled", true)
             }
             web_socket.onopen = function(e) {
-                console.log("WebSocket Open")
-                console.log(e)
-                web_socket.send("TEST")
-                console.log("Sent TEST")
+                // Enable WebSocket Buttons
+                $("#button-get-conn-info, #button-get-cur-time, #button-close").attr("disabled", false)
             }
             web_socket.onmessage = function(e) {
                 console.log("WebSocket Message")
                 console.log(e)
                 in_data = e.data.split("|")
-                $("#incoming-data").append(in_data[0]+": "+in_data[1]+"\n");
+
+                if (in_data[0] == "RESET" && in_data[1] == "RESET") {
+                    // Empty incoming data
+                    $("#incoming-data").empty()
+                } else {
+                    // Write message into incoming data
+                    $("#incoming-data").append(in_data[0]+": "+in_data[1]+"\n");
+                }
             }
 
         });
@@ -43,8 +48,9 @@
     <body>
         <h1>WebSocket Server Test</h1>
         <div id="button-controls">
-            <button id="button-send" onclick="web_socket.send('SENDING DATA')">Send Test Data</button>
-            <button id="button-close" onclick="web_socket.close()">Close WebSocket</button>
+            <button id="button-get-conn-info" onclick="web_socket.send('CONN_INFO')" disabled="disabled">Get Connection Info</button>
+            <button id="button-get-cur-time" onclick="web_socket.send('CUR_TIME')" disabled="disabled">Get Current Time</button>
+            <button id="button-close" onclick="web_socket.close()" disabled="disabled">Close WebSocket</button>
         </div>
         <h2>WebSocket Incoming Data</h2>
         <pre id="incoming-data"></pre>

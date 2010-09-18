@@ -83,11 +83,6 @@ HTTP_510 = "510 Not Extended"
 
 # ----------------------------------------------------------------------------------------------------------------------
 
-PERSISTENCE_KEEP_ALIVE = 1
-PERSISTENCE_PROTOCOL   = 2
-
-# ----------------------------------------------------------------------------------------------------------------------
-
 class WebSocketClient (Client):
 
     def __init__ (self, client_socket, client_address, server, server_address):
@@ -100,12 +95,22 @@ class WebSocketClient (Client):
         @param server_address (tuple)  A two-part tuple containing the server ip and port to which the client has
                                        made a connection.
         """
+        self.protocol = None
 
         Client.__init__(self, client_socket, client_address, server, server_address)
 
-        self._orig_read_delimiter = self.read_delimiter # current read delimiter method
-
         self.read_delimiter("\r\n", self.handle_request, server._max_request_length)
+
+    # ------------------------------------------------------------------------------------------------------------------
+
+    def _handle_message (self, framed_message):
+        """
+        This removes the frame from a WebSocket message passes it to self.handle_message
+        """
+        self.handle_message(framed_message[1:-1])
+
+        # Listen for next message
+        self.listen_for_message()
 
     # ------------------------------------------------------------------------------------------------------------------
 
@@ -129,7 +134,6 @@ class WebSocketClient (Client):
                                                                       self.in_headers["REQUEST_URI"])
         out_headers += self.response_token
 
-        print "RESPONSE HEADER:", out_headers
         self.write(out_headers)
 
     # ------------------------------------------------------------------------------------------------------------------
@@ -210,21 +214,24 @@ class WebSocketClient (Client):
             if in_headers["SERVER_PROTOCOL"] == "HTTP/1.1" and in_headers["HTTP_UPGRADE"] == "WebSocket" and\
                in_headers["HTTP_CONNECTION"] == "Upgrade":
 
+                if "HTTP_SEC_WEBSOCKET_PROTOCOL" in self.in_headers:
+                    self.protocol = in_headers["HTTP_SEC_WEBSOCKET_PROTOCOL"]
+
                 self.read_length(8, self.handle_response_token)
 
                 self.handle_dispatch()
 
-                self.read_delimiter("\xFF", self.handle_message, self._server._max_headers_length)
+                self.listen_for_message()
 
             else:
-                raise HttpException("Bad Request", HTTP_400)
+                raise HttpException("Bad Request1", HTTP_400)
 
         except HttpException:
             raise
 
         except Exception as e:
             print e
-            raise HttpException("Bad Request1", HTTP_400)
+            raise HttpException("Bad Request2", HTTP_400)
 
     # ------------------------------------------------------------------------------------------------------------------
 
@@ -234,8 +241,7 @@ class WebSocketClient (Client):
 
         @param data (str) The data that has tentatively been found as the request line.
         """
-        self.read_delimiter = self._orig_read_delimiter
-        self.response_code  = HTTP_101
+        self.response_code = HTTP_101
 
         # parse method, uri and protocol
         try:
@@ -243,13 +249,13 @@ class WebSocketClient (Client):
             method, uri, protocol = data.split(" ")
 
         except:
-            raise HttpException("Bad Request", HTTP_400)
+            raise HttpException("Bad Request3", HTTP_400)
 
         # verify method and protocol
         protocol = protocol.upper()
 
         if protocol not in ("HTTP/1.1"):
-            raise HttpException("Bad Request", HTTP_400)
+            raise HttpException("Bad Request4", HTTP_400)
 
         # initialize headers
         in_headers = { "HTTP_CONTENT_TYPE": "text/plain",
@@ -302,14 +308,33 @@ class WebSocketClient (Client):
         """
         # allowing another request
         self.clear_write_buffer()
-        #self.read_delimiter("\r\n", self.handle_request, self._server._max_request_length)
+
+    # ------------------------------------------------------------------------------------------------------------------
+
+    def listen_for_message (self):
+        """
+        Listen for incoming WebSocket messages.
+        """
+
+        self.read_delimiter("\xFF", self._handle_message, self._server._max_message_length)
+
+    # ------------------------------------------------------------------------------------------------------------------
+
+    def write_message (self, message):
+        """
+        Write a WebSocket message wrapped in a frame.
+
+        @param message (str)
+        """
+        # allowing another request
+        self.write("\x00%s\xFF" % message)
 
 # ----------------------------------------------------------------------------------------------------------------------
 
 class WebSocketServer (Server):
 
     def __init__ (self, gmt_offset="-5", upload_dir="/tmp", upload_buffer_size=50000, max_request_length=5000,
-                  max_headers_length=10000, **kwargs):
+                  max_headers_length=10000, max_message_length=10000, **kwargs):
         """
         Create a new WebSocketServer instance.
 
@@ -319,6 +344,7 @@ class WebSocketServer (Server):
         @param upload_buffer_size (int) The upload buffer size.
         @param max_request_length (int) The maximum length of the initial request line.
         @param max_headers_length (int) The maximum length for the headers.
+        @param max_headers_length (int) The maximum length for WebSocket messages received.
         """
 
         Server.__init__(self, **kwargs)
@@ -326,6 +352,7 @@ class WebSocketServer (Server):
         self._gmt_offset         = gmt_offset
         self._max_headers_length = max_headers_length
         self._max_request_length = max_request_length
+        self._max_message_length = max_message_length
         self._upload_dir         = upload_dir
 
     # ------------------------------------------------------------------------------------------------------------------
