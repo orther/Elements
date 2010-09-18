@@ -18,12 +18,6 @@ from elements.async.impl.http import HttpServer
 
 # ----------------------------------------------------------------------------------------------------------------------
 
-HTTP_101 = "101 Switching Protocols"
-HTTP_400 = "400 Bad Request"
-HTTP_500 = "500 Internal Server Error"
-
-# ----------------------------------------------------------------------------------------------------------------------
-
 class WebSocketClient (HttpClient):
 
     def _handle_message (self, framed_message):
@@ -32,7 +26,7 @@ class WebSocketClient (HttpClient):
         listening for the next WebSocket message.
         """
 
-        self.handle_message(framed_message[1:-1])
+        self.handle_web_socket_message(framed_message[1:-1])
 
         self._listen_for_message()
 
@@ -55,7 +49,7 @@ class WebSocketClient (HttpClient):
         """
 
         if self._is_web_socket_connection:
-            out_headers  = "%s %s\r\n" % (self.in_headers["SERVER_PROTOCOL"], HTTP_101)
+            out_headers  = "%s 101 Switching Protocols\r\n" % self.in_headers["SERVER_PROTOCOL"]
             out_headers += "Upgrade: WebSocket\r\n"
             out_headers += "Connection: Upgrade\r\n"
 
@@ -137,12 +131,12 @@ class WebSocketClient (HttpClient):
 
     # ------------------------------------------------------------------------------------------------------------------
 
-    def handle_message (self):
+    def handle_web_socket_message (self):
         """
         This callback is executed when a WebSocket message is received.
         """
 
-        raise ClientException("WebSocketServer.handle_message() must be overridden")
+        raise ClientException("WebSocketServer.handle_web_socket_message() must be overridden")
 
     # ------------------------------------------------------------------------------------------------------------------
 
@@ -159,19 +153,6 @@ class WebSocketClient (HttpClient):
 
         key = struct.pack(">II", key1, key2) + key3
         self.response_token = hashlib.md5(key).digest()
-
-    # ------------------------------------------------------------------------------------------------------------------
-
-    def handle_shutdown (self):
-        """
-        This callback will be executed when this WebSocketServer instance is shutting down.
-        """
-
-        if self._is_web_socket_connection:
-            print "Web Socket Shut down"
-
-        else:
-            HttpClient.handle_shutdown(self)
 
     # ------------------------------------------------------------------------------------------------------------------
 
@@ -223,6 +204,5 @@ class WebSocketServer (HttpServer):
         @param exception (Exception)       The exception.
         @param client    (WebSocketServer) The WebSocketServer instance that was active during the exception.
         """
-        print "THIS IS A TEST!!!", exception
 
         HttpServer.handle_exception(self, exception)
