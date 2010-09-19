@@ -20,6 +20,17 @@ from elements.async.impl.http import HttpServer
 
 class WebSocketClient (HttpClient):
 
+    def __init__ (self, *args):
+        """
+        Create a new WebSocketClient instance.
+        """
+
+        HttpClient.__init__(self, *args)
+
+        self._is_web_socket_connection = False
+
+    # ------------------------------------------------------------------------------------------------------------------
+
     def _handle_message (self, framed_message):
         """
         This removes the frame from the WebSocket message and then passes it to self.handle_message and then starts
@@ -98,9 +109,9 @@ class WebSocketClient (HttpClient):
         This callback will be executed after the headers have been parsed and content negotiation needs to start.
         """
 
-        if self.in_headers["SERVER_PROTOCOL"] == "HTTP/1.1" and self.in_headers["HTTP_UPGRADE"] == "WebSocket" and\
-           self.in_headers["HTTP_CONNECTION"] == "Upgrade":
-
+        if self.in_headers.get("SERVER_PROTOCOL") == "HTTP/1.1" and self.in_headers.get("HTTP_UPGRADE") == "WebSocket" and\
+           self.in_headers.get("HTTP_CONNECTION") == "Upgrade":
+            # websocket http request
             self._is_web_socket_connection = True
 
             if "HTTP_SEC_WEBSOCKET_PROTOCOL" in self.in_headers:
@@ -112,6 +123,8 @@ class WebSocketClient (HttpClient):
             self.handle_web_socket_connect()
 
             self._listen_for_message()
+
+            return
 
         else:
             # non-websocket http request
