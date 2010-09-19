@@ -20,7 +20,7 @@ from elements.async.impl.web_socket import WebSocketServer
 
 class ExampleClient (WebSocketClient):
 
-    def handle_connect (self):
+    def handle_web_socket_connect (self):
         """
         Return response header to complete the WebSocket handshake and begin connection.
         """
@@ -38,7 +38,7 @@ class ExampleClient (WebSocketClient):
 
     # ------------------------------------------------------------------------------------------------------------------
 
-    def handle_message (self, message):
+    def handle_web_socket_message (self, message):
         """
         Handle an incoming WebSocket message.
 

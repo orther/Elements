@@ -93,16 +93,6 @@ class WebSocketClient (HttpClient):
 
     # ------------------------------------------------------------------------------------------------------------------
 
-    def handle_web_socket_connect (self):
-        """
-        This callback is executed when the request has been parsed and a response header is needed to complete the
-        WebSocket connection.
-        """
-
-        raise ClientException("WebSocketServer.handle_web_socket_connect() must be overridden")
-
-    # ------------------------------------------------------------------------------------------------------------------
-
     def handle_content_negotiation (self):
         """
         This callback will be executed after the headers have been parsed and content negotiation needs to start.
@@ -131,15 +121,6 @@ class WebSocketClient (HttpClient):
 
     # ------------------------------------------------------------------------------------------------------------------
 
-    def handle_web_socket_message (self):
-        """
-        This callback is executed when a WebSocket message is received.
-        """
-
-        raise ClientException("WebSocketServer.handle_web_socket_message() must be overridden")
-
-    # ------------------------------------------------------------------------------------------------------------------
-
     def handle_response_token (self, data):
         """
         This callback is executed when the handshake response token needs to be built.
@@ -153,6 +134,25 @@ class WebSocketClient (HttpClient):
 
         key = struct.pack(">II", key1, key2) + key3
         self.response_token = hashlib.md5(key).digest()
+
+    # ------------------------------------------------------------------------------------------------------------------
+
+    def handle_web_socket_connect (self):
+        """
+        This callback is executed when the request has been parsed and a response header is needed to complete the
+        WebSocket connection.
+        """
+
+        raise ClientException("WebSocketServer.handle_web_socket_connect() must be overridden")
+
+    # ------------------------------------------------------------------------------------------------------------------
+
+    def handle_web_socket_message (self):
+        """
+        This callback is executed when a WebSocket message is received.
+        """
+
+        raise ClientException("WebSocketServer.handle_web_socket_message() must be overridden")
 
     # ------------------------------------------------------------------------------------------------------------------
 
