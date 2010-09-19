@@ -63,6 +63,10 @@ class WebSocketChatClient (WebSocketClient):
             # force mime type for css file
             self.content_type = "text/css"
 
+        elif script_name[-3:] == ".js":
+            # force mime type for css file
+            self.content_type = "text/javascript"
+
         self.compose_headers()
 
         if script_name in ("web_socket_chat_server.html", "web_socket_chat_server.js", "web_socket_chat_server.css"):
