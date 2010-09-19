@@ -192,6 +192,8 @@ class WebSocketClient (HttpClient):
 
         self.write("\x00%s\xFF" % message)
 
+        self.flush()
+
 # ----------------------------------------------------------------------------------------------------------------------
 
 class WebSocketServer (HttpServer):
