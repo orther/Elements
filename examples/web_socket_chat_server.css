@@ -48,6 +48,9 @@
             #chat-app #chat-content dt.user-join {
                 color: #ffff00;
             }
+            #chat-app #chat-content dt.user-list {
+                color: orange;
+            }
             #chat-app #chat-content dt.user-part {
                 color: #ff00ff;
             }

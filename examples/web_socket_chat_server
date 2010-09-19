@@ -150,8 +150,9 @@ class WebSocketChatServer (WebSocketServer):
             client.username            = username
             self._chat_users[username] = client
 
-            # notify usser they have successfully connected
+            # notify user they have successfully connected
             client.write_message(self.chat_build_message(WEB_SOCKET_CHAT_RSP_CONN_SUCCESS, username))
+            client.write_message(self.chat_build_message(WEB_SOCKET_CHAT_RSP_USER_LIST, *self._chat_users.keys()))
 
             # notify other users a user has connected
             self.chat_message_to_all_users(self.chat_build_message(WEB_SOCKET_CHAT_RSP_USER_JOIN, username), username)

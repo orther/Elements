@@ -107,7 +107,8 @@ $(document).ready(function(){
                     break;
 
                 case WEB_SOCKET_CHAT_RSP_USER_LIST:
-                    $("#chat-content").append('<dt class="user-join">User List:</dt><dd class="user-join"> -- '+message+' --</dd>');
+                    var user_list = message.split("|").join(", ")
+                    $("#chat-content").append('<dt class="user-list">User List:</dt><dd class="user-join"> -- '+user_list+' --</dd>');
                     break;
 
                 case WEB_SOCKET_CHAT_RSP_USER_JOIN:
