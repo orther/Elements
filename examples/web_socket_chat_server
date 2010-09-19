@@ -234,7 +234,10 @@ class WebSocketChatServer (WebSocketServer):
         @param username (str)
         """
 
-        self._chat_users.pop(username, None)
+        if username in self._chat_users:
+            self._chat_users.pop(username)
+
+            self.chat_message_to_all_users(self.chat_build_message(WEB_SOCKET_CHAT_RSP_USER_PART, username))
 
     # ------------------------------------------------------------------------------------------------------------------
 
