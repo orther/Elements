@@ -49,6 +49,33 @@ class WebSocketChatClient (WebSocketClient):
 
     # ------------------------------------------------------------------------------------------------------------------
 
+    def handle_dispatch (self):
+        """
+        Handle non-WebSocket http requests. For this example chat server we serve the html, css and js file here.
+        """
+
+        script_name  = self.in_headers.get("SCRIPT_NAME", "/")[1:]
+
+        if not script_name:
+            script_name = "web_socket_chat_server.html"
+
+        if script_name[-4:] == ".css":
+            # force mime type for css file
+            self.content_type = "text/css"
+
+        self.compose_headers()
+
+        if script_name in ("web_socket_chat_server.html", "web_socket_chat_server.js", "web_socket_chat_server.css"):
+            # write file
+            with open(script_name, "r") as f:
+                self.write(f.read())
+            f.closed
+
+        # flush the response
+        self.flush()
+
+    # ------------------------------------------------------------------------------------------------------------------
+
     def handle_shutdown (self):
         """
         Remove user when they disconnect.
@@ -91,7 +118,6 @@ class WebSocketChatClient (WebSocketClient):
             client.write_message(WEB_SOCKET_CHAT_INVALID_MESSAGE)
 
         elif self.username:
-            print "handle message", (self.username, message)
             self._server.chat_handle_message(self.username, message)
 
         else:
