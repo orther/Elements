@@ -185,7 +185,8 @@ class WebSocketChatServer (WebSocketServer):
             client.write_message(self.chat_build_message(WEB_SOCKET_CHAT_RSP_USER_LIST, *self._chat_users.keys()))
 
             # notify other users a user has connected
-            self.chat_message_to_all_users(self.chat_build_message(WEB_SOCKET_CHAT_RSP_USER_JOIN, username), username)
+            self.chat_message_to_all_users(self.chat_build_message(WEB_SOCKET_CHAT_RSP_USER_JOIN, username),
+                                           (username,))
 
         else:
             # username already taken
@@ -208,7 +209,7 @@ class WebSocketChatServer (WebSocketServer):
             elif message[0] == WEB_SOCKET_CHAT_REQ_USER_MSG:
                 send_msg = self.chat_build_message(WEB_SOCKET_CHAT_RSP_USER_MSG, username, message[1])
 
-                self.chat_message_to_all_users(send_msg, username)
+                self.chat_message_to_all_users(send_msg, (username,))
 
         else:
             # TODO: remove print and decide how to handle miss match.
