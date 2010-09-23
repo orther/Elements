@@ -72,7 +72,7 @@ class Server:
         self._is_parent                = True             # indicates that this process is the parent
         self._is_shutting_down         = False            # indicates that this server is shutting down
         self._is_serving_client        = False            # indicates that a client is being served
-        self._loop_interval            = 1                # the interval in seconds between calling handle_loop()
+        self._loop_interval            = loop_interval    # the interval in seconds between calling handle_loop()
         self._print_settings           = print_settings   # indicates that the settings should be printed to the console
         self._timeout                  = timeout          # the timeout in seconds for a client to be removed
         self._timeout_interval         = timeout_interval # the interval in seconds between checking for idle clients
@@ -392,6 +392,17 @@ class Server:
                 self.unregister_client(host)
 
         self._is_listening = status
+
+    # ------------------------------------------------------------------------------------------------------------------
+
+    def modify_client (self, client):
+        """
+        Modify the events for a client.
+
+        @param client (Client) The client.
+        """
+
+        self._event_manager.modify(client._fileno, client._events)
 
     # ------------------------------------------------------------------------------------------------------------------
 
