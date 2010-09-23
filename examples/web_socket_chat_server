@@ -69,7 +69,10 @@ class WebSocketChatClient (WebSocketClient):
 
         self.compose_headers()
 
-        if script_name in ("web_socket_chat_server.html", "web_socket_chat_server.js", "web_socket_chat_server.css"):
+        allowed_files = ("jquery.min.js", "web_socket_chat_server.html", "web_socket_chat_server.js",
+                         "web_socket_chat_server.css")
+
+        if script_name in allowed_files:
             # write file
             with open(script_name, "r") as f:
                 self.write(f.read())
@@ -161,6 +164,7 @@ class WebSocketChatServer (WebSocketServer):
 
         items = [item_1, item_2]
 
+        # TODO: just check len and then merge
         for item in args:
             items.append(item)
 
@@ -223,7 +227,7 @@ class WebSocketChatServer (WebSocketServer):
         message.
 
         @param message       (str)
-        @param exclude_users (list)
+        @param exclude_users (tuple)
         """
 
         for username in self._chat_users:
