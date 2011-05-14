@@ -10,11 +10,70 @@ import new
 
 import settings
 
-from DBUtils.PooledDB import PooledDB
-
 from elements.core.exception import DatabaseModelException
 from elements.core.exception import ModelException
 from elements.model.model    import Int
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+def fetch_all (cursor):
+    """
+    Retrieve all records from the cursor.
+
+    @param cursor (object) The database cursor.
+
+    @return (list) A list of dicts which represent each record.
+    """
+
+    if cursor.rowcount == 0 or not cursor.description:
+        return []
+
+    fields  = [field[0] for field in cursor.description]
+    records = []
+
+    for record in cursor.fetchall():
+        records.append(dict(zip(fields, record)))
+
+    return records
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+def fetch_many (cursor, count):
+    """
+    Retrieve one or more records from the cursor.
+
+    @param cursor (object) The database cursor.
+    @param count  (int)    The count of records to retrieve.
+
+    @return (list) A list of dicts which represent each record.
+    """
+
+    if cursor.rowcount == 0 or not cursor.description:
+        return []
+
+    fields  = [field[0] for field in cursor.description]
+    records = []
+
+    for record in cursor.fetchmany(count):
+        records.append(dict(zip(fields, record)))
+
+    return records
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+def fetch_one (cursor):
+    """
+    Retrieve a single record from the cursor.
+
+    @param cursor (object) The database cursor.
+
+    @return (dict) A single dict representing a database record.
+    """
+
+    if cursor.rowcount == 0 or not cursor.description:
+        return None
+
+    return dict(zip([field[0] for field in cursor.description], cursor.fetchone()))
 
 # ----------------------------------------------------------------------------------------------------------------------
 
@@ -30,17 +89,19 @@ def get_connection (name="default"):
     if name not in settings.databases:
         raise DatabaseModelException("Non-existent database connection pool name %s" % name)
 
-    return settings.databases[name]["instance"].connection()
+    return settings.databases[name]["instance"].dedicated_connection()
 
 # ----------------------------------------------------------------------------------------------------------------------
 
 def init ():
     """
     Initialize database connection pools.
-
-    Note: This will be called automatically when a DatabaseModel sub-class is present. Otherwise this must be called once at
-          application startup.
     """
+
+    from DBUtils.PooledDB import PooledDB
+
+    if DatabaseModel._POOL_INIT_:
+        return
 
     try:
         for name, data in settings.databases.items():
@@ -52,30 +113,44 @@ def init ():
             if "pool" not in data:
                 raise DatabaseModelException("Database %s is missing pool setting" % name)
 
-            api  = data["api"]
-            pool = data["pool"]
-
-            del data["api"]
-            del data["pool"]
+            api  = data.pop("api")
+            pool = data.pop("pool")
 
             settings.databases[name]["instance"] = PooledDB(api, pool, **data)
 
     except Exception, e:
         raise DatabaseModelException(str(e))
 
+    DatabaseModel._POOL_INIT_ = True
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+def reinit ():
+    """
+    Reinitialize database connection pools.
+    """
+
+    if not DatabaseModel._POOL_INIT_:
+        init()
+
+        return
+
+    for name in settings.databases.keys():
+        if "instance" in settings.databases[name]:
+            del settings.databases[name]["instance"]
+
+    DatabaseModel._POOL_INIT_ = False
+
+    init()
+
 # ----------------------------------------------------------------------------------------------------------------------
 
 class DatabaseModelMetaclass (type):
 
-    # indicates whether or not the pool has been initialized
-    __POOL_INIT = False
-
-    # ------------------------------------------------------------------------------------------------------------------
-
     def __init__ (cls, name, bases, members):
         """
         Create a new DatabaseModelMetaclass instance.
-        
+
         @param cls     (class) The metaclass instance.
         @param name    (str)   The class name.
         @param bases   (tuple) The class base and interfaces.
@@ -98,6 +173,7 @@ class DatabaseModelMetaclass (type):
         cls.Meta              = new.classobj("Meta", (object,), { "connection": None })
         cls.Meta.columns      = []
         cls.Meta.model        = cls.model
+        cls.Meta.model_init   = False
         cls.Meta.foreign_keys = {}
         cls.Meta.primary_key  = cls.primary_key
         cls.Meta.table        = cls.table
@@ -119,12 +195,6 @@ class DatabaseModelMetaclass (type):
 
             del cls.foreign_keys
 
-        # check database pool
-        if not DatabaseModelMetaclass.__POOL_INIT:
-            init()
-            
-            DatabaseModelMetaclass.__POOL_INIT = True
-
         if hasattr(cls, "database"):
             if cls.database not in settings.databases:
                 raise DatabaseModelException("%s uses nonexistent database %s" % (name, cls.database))
@@ -139,8 +209,6 @@ class DatabaseModelMetaclass (type):
 
             cls.Meta.database = "default"
 
-        cls.Meta.db = settings.databases[cls.Meta.database]["instance"]
-        
         # check primary key
         if type(cls.Meta.primary_key) != str:
             raise DatabaseModelException("%s has an invalid primary key" % name)
@@ -153,30 +221,45 @@ class DatabaseModelMetaclass (type):
             raise DatabaseModelException("%s primary key field '%s' is not an integer field" % (name,
                                                                                                 cls.Meta.primary_key))
 
-        # get column details
+        return type.__init__(cls, name, bases, members)
+
+    # ------------------------------------------------------------------------------------------------------------------
+
+    @staticmethod
+    def init_model (meta):
+        """
+        Initialize the column list for this model.
+
+        @param meta (object) The meta object containing information about the model.
+        """
+
+        if meta.model_init:
+            return
+
+        meta.db    = settings.databases[meta.database]["instance"]
+        connection = None
+
         try:
-            connection = None
-            cursor     = None
-            connection = cls.Meta.db.connection()
+            # get column details
+            connection = meta.db.connection()
             cursor     = connection.cursor()
 
-            cursor.execute("SELECT * FROM \"%s\" LIMIT 1" % cls.Meta.table)
+            cursor.execute("SELECT * FROM \"%s\" LIMIT 1" % meta.table)
 
-            [cls.Meta.columns.append(column[0]) for column in cursor.description]
+            [meta.columns.append(column[0]) for column in cursor.description]
 
         finally:
-            if cursor:
-                cursor.close()
+            meta.model_init = True
 
             if connection:
+                cursor.close()
                 connection.close()
-
-        return type.__init__(cls, name, bases, members)
 
 # ----------------------------------------------------------------------------------------------------------------------
 
 class DatabaseModel:
 
+    _POOL_INIT_   = False
     __metaclass__ = DatabaseModelMetaclass
 
     # ------------------------------------------------------------------------------------------------------------------
@@ -231,7 +314,7 @@ class DatabaseModel:
         Retrieve a field value.
 
         @param name (str) The field name.
-        
+
         @return (object) The field value.
         """
 
@@ -244,7 +327,7 @@ class DatabaseModel:
         Retrieve a field value.
 
         @param name (str) The field name.
-        
+
         @return (object) The field value.
         """
 
@@ -276,28 +359,35 @@ class DatabaseModel:
 
     # ------------------------------------------------------------------------------------------------------------------
 
-    def delete (self):
+    def delete (self, connection=None, commit=True):
         """
         Delete the record from the database that is associated with the primary key in this model.
+
+        @param connection (object) The database connection.
+        @param commit     (bool)   Indicates that the current transaction should be auto-committed. This is only
+                                   useful when passing in a connection object.
 
         @return (bool) True, upon success, otherwise False.
         """
 
+        close  = True
         meta   = self.Meta
         values = self.values()
 
         if meta.primary_key not in values:
             raise DatabaseModelException("This DatabaseModel instance does not represent an active database record")
 
+        if not meta.model_init:
+            DatabaseModelMetaclass.init_model(meta)
+
         try:
-            if self.__dict__["_connection"]:
-                close      = False
-                cursor     = None
+            if connection:
+                close = False
+
+            elif self.__dict__["_connection"]:
                 connection = self.__dict__["_connection"]
 
             else:
-                close      = True
-                cursor     = None
                 connection = settings.databases[meta.database]["instance"].connection()
 
             cursor = connection.cursor()
@@ -305,18 +395,20 @@ class DatabaseModel:
             cursor.execute("DELETE FROM \"" + meta.table + "\" WHERE " + meta.primary_key + " = %s",
                            (values[meta.primary_key],))
 
-            return cursor.rowcount and cursor.rowcount > 0
+            return cursor.rowcount > 0
 
         except Exception, e:
             raise DatabaseModelException(str(e))
 
         finally:
-            if cursor:
+            if connection:
                 cursor.close()
 
-            if close and connection:
-                connection.commit()
-                connection.close()
+                if commit:
+                    connection.commit()
+
+                if close:
+                    connection.close()
 
     # ------------------------------------------------------------------------------------------------------------------
 
@@ -332,15 +424,17 @@ class DatabaseModel:
     # ------------------------------------------------------------------------------------------------------------------
 
     @classmethod
-    def filter (cls, filters, query_type="AND"):
+    def filter (cls, filters, query_type="AND", connection=None):
         """
         Retrieve a list of filtered records for this model.
 
-        @param filters    (tuple) The tuple or list consisting of tuples or lists of column, operator and value entries.
-        @param query_type (str)   The type of filtering, either AND or OR.
+        @param filters    (tuple)  The tuple or list consisting of tuples or lists of column, operator and value
+                                   entries.
+        @param query_type (str)    The type of filtering, either AND or OR.
+        @param connection (object) The database connection.
         """
 
-        return DatabaseModelQuery(cls, filters, query_type)
+        return DatabaseModelQuery(cls, filters, query_type, connection)
 
     # ------------------------------------------------------------------------------------------------------------------
 
@@ -353,16 +447,17 @@ class DatabaseModel:
         @param connection (object) The connection to use for this operation.
         """
 
-        meta = cls.Meta
+        close = True
+        meta  = cls.Meta
+
+        if not meta.model_init:
+            DatabaseModelMetaclass.init_model(meta)
 
         try:
             if connection:
-                close  = False
-                cursor = None
+                close = False
 
             else:
-                close      = True
-                cursor     = None
                 connection = settings.databases[meta.database]["instance"].connection()
 
             cursor = connection.cursor()
@@ -376,7 +471,7 @@ class DatabaseModel:
 
                 if not close:
                     # give the passed connection to the object as well
-                    record.connection(connection)
+                    record.set_connection(connection)
 
             return record
 
@@ -384,18 +479,18 @@ class DatabaseModel:
             raise DatabaseModelException(str(e))
 
         finally:
-            if cursor:
+            if connection:
                 cursor.close()
 
-            if close and connection:
-                connection.close()
+                if close:
+                    connection.close()
 
     # ------------------------------------------------------------------------------------------------------------------
 
     def get_connection (self, connection):
         """
         Retrieve the current connection that is used in this model.
-        
+
         @return (object) The live database connection, if set_connection() has assigned a connection, otherwise None.
         """
 
@@ -403,25 +498,32 @@ class DatabaseModel:
 
     # ------------------------------------------------------------------------------------------------------------------
 
-    def save (self):
+    def save (self, connection=None, commit=True):
         """
         Save the record in the database that is associated with the primary key in this model, and if no primary key
         is set than create a new record.
 
+        @param connection (object) The database connection.
+        @param commit     (bool)   Indicates that the current transaction should be auto-committed. This is only
+                                   useful when passing in a connection object.
+
         @return (bool) True, upon success.
         """
 
-        meta = self.Meta
+        close = True
+        meta  = self.Meta
+
+        if not meta.model_init:
+            DatabaseModelMetaclass.init_model(meta)
 
         try:
-            if self.__dict__["_connection"]:
-                close      = False
-                cursor     = None
+            if connection:
+                close = False
+
+            elif self.__dict__["_connection"]:
                 connection = self.__dict__["_connection"]
 
             else:
-                close      = True
-                cursor     = None
                 connection = settings.databases[meta.database]["instance"].connection()
 
             cursor = connection.cursor()
@@ -461,18 +563,17 @@ class DatabaseModel:
                 cursor.execute("INSERT INTO \"" + meta.table + "\" (" + ",".join(in_keys) + ") VALUES (" + \
                                ",".join(in_fields) + ")", in_values)
 
-            return cursor.rowcount and cursor.rowcount > 0
+            return cursor.rowcount > 0
 
         except Exception, e:
             raise DatabaseModelException(str(e))
 
         finally:
-            if cursor:
+            if connection:
                 cursor.close()
 
-            if close and connection:
-                connection.commit()
-                connection.close()
+                if commit:
+                    connection.commit()
 
     # ------------------------------------------------------------------------------------------------------------------
 
@@ -498,9 +599,11 @@ class DatabaseModel:
         @return (bool) True, upon success, otherwise False.
         """
 
-        meta      = self.Meta
-        model     = self.__dict__["_model_inst"]
-        validated = model.validate()
+        close      = True
+        connection = None
+        meta       = self.Meta
+        model      = self.__dict__["_model_inst"]
+        validated  = model.validate()
 
         if not validated:
             # get the validation errors and if the length of them is one and the error is from the primary key,
@@ -525,14 +628,13 @@ class DatabaseModel:
                     connection = self.__dict__["_connection"]
 
                 else:
-                    close      = True
                     connection = settings.databases[meta.database]["instance"].connection()
 
                 values = self.values()
 
                 for key, model in meta.foreign_keys.items():
                     if key in values:
-                        if not model.get(values[key], connection=connection):
+                        if not model.get(values[key], connection):
                             errors[key] = settings.dbmodel_fk_constraint_err
 
                 return len(errors) == 0
@@ -541,8 +643,11 @@ class DatabaseModel:
                 raise DatabaseModelException(str(e))
 
             finally:
-                if close and connection:
-                    connection.close()
+                if connection:
+                    cursor.close()
+
+                    if close:
+                        connection.close()
 
         return False
 
@@ -581,13 +686,14 @@ class DatabaseModel:
 
 class DatabaseModelQuery:
 
-    def __init__ (self, cls, filters, query_type="AND"):
+    def __init__ (self, cls, filters, query_type="AND", connection=None):
         """
         Create a new DatabaseModelQuery instance.
-        
-        @param cls        (class) The parent DatabaseModel class under which this query will operate.
-        @param filters    (tuple) The tuple or list consisting of tuples or lists of column, operator and value entries.
-        @param query_type (str)   The type of filtering, either AND or OR.
+
+        @param cls        (class)  The parent DatabaseModel class under which this query will operate.
+        @param filters    (tuple)  The tuple or list consisting of tuples or lists of column, operator and value entries.
+        @param query_type (str)    The type of filtering, either AND or OR.
+        @param connection (object) The database connection.
         """
 
         if not isinstance(cls(), DatabaseModel):
@@ -600,7 +706,7 @@ class DatabaseModelQuery:
             raise DatabaseModelException("Query type must be AND or OR")
 
         self._cls        = cls
-        self._connection = None
+        self._connection = connection
         self._limit      = None
         self._offset     = None
         self._order      = None
@@ -647,7 +753,7 @@ class DatabaseModelQuery:
 
                 else:
                     self._query += (" %s NOT IN (" % field) + ",".join(ins) + ")"
-            
+
             elif type(value) == bool:
                 if value:
                     self._query += " %s" % field
@@ -683,8 +789,10 @@ class DatabaseModelQuery:
         @return (object) A list of records, upon success, otherwise None.
         """
 
-        query = self._query
-        meta  = self._cls.Meta
+        close      = True
+        connection = None
+        query      = self._query
+        meta       = self._cls.Meta
 
         if self._order:
             query += " ORDER BY %s" % self._order
@@ -698,13 +806,13 @@ class DatabaseModelQuery:
         try:
             if self._connection:
                 close      = False
-                cursor     = None
                 connection = self._connection
 
             else:
-                close      = True
-                cursor     = None
                 connection = settings.databases[meta.database]["instance"].connection()
+
+            if not meta.model_init:
+                DatabaseModelMetaclass.init_model(meta)
 
             cursor = connection.cursor()
             cursor.execute(query, self._values)
@@ -719,7 +827,12 @@ class DatabaseModelQuery:
                     if not record:
                         break
 
-                    records.append(self._cls(**dict(zip(meta.columns, record))))
+                    record = self._cls(**dict(zip(meta.columns, record)))
+
+                    records.append(record)
+
+                    if not close:
+                        record.set_connection(connection)
 
             else:
                 # don't convert records
@@ -730,18 +843,18 @@ class DatabaseModelQuery:
                         break
 
                     records.append(dict(zip(meta.columns, record)))
-            
+
             return records
 
         except Exception, e:
             raise DatabaseModelException(str(e))
 
         finally:
-            if cursor:
+            if connection:
                 cursor.close()
 
-            if close and connection:
-                connection.close()
+                if close:
+                    connection.close()
 
     # ------------------------------------------------------------------------------------------------------------------
 
@@ -750,7 +863,7 @@ class DatabaseModelQuery:
         Set the limit of records.
 
         @param limit (int) The record limit.
-        
+
         @return (object) This exact DatabaseModelQuery instance.
         """
 
@@ -771,12 +884,12 @@ class DatabaseModelQuery:
         """
 
         self.offset(offset)
-        
+
         if limit > 1000000:
             # this is to protect from getslice functionality where if a limit isn't set, it is
             # assumed to be the value of the long max
             limit = None
-            
+
         self.limit(limit)
 
         return self
@@ -786,7 +899,7 @@ class DatabaseModelQuery:
     def get_connection (self, connection):
         """
         Retrieve the current connection that is being used.
-        
+
         @return (object) The live database connection, if set_connection() has assigned a connection, otherwise None.
         """
 
@@ -815,7 +928,7 @@ class DatabaseModelQuery:
     def offset (self, offset):
         """
         Set the record offset.
-        
+
         @param offset (int) The record offset.
 
         @return (object) This exact DatabaseModelQuery instance.

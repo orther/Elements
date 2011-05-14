@@ -12,37 +12,8 @@ import sys
 
 sys.path.append(os.path.abspath("../lib"))
 
-from elements.async.impl.http import HttpAction
-from elements.async.impl.http import RoutingHttpServer
-from elements.async.impl.http import StaticHttpAction
-
-# ----------------------------------------------------------------------------------------------------------------------
-
-class ExampleAction (HttpAction):
-
-    def get (self, client):
-        """
-        Handle a GET request.
-
-        @param client (HttpClient) The HttpClient instance.
-        """
-
-        client.compose_headers()
-        client.write("GET served")
-        client.flush()
-
-    # ------------------------------------------------------------------------------------------------------------------
-
-    def post (self, client):
-        """
-        Handle a GET request.
-
-        @param client (HttpClient) The HttpClient instance.
-        """
-
-        client.compose_headers()
-        client.write("POST served")
-        client.flush()
+from elements.http.action import HttpAction
+from elements.http.server import RoutingHttpServer
 
 # ----------------------------------------------------------------------------------------------------------------------
 
@@ -70,7 +41,6 @@ class ExampleArgsAction (HttpAction):
 
         client.compose_headers()
         client.write(self._sentence)
-        client.flush()
 
     # ------------------------------------------------------------------------------------------------------------------
 
@@ -83,7 +53,6 @@ class ExampleArgsAction (HttpAction):
 
         client.compose_headers()
         client.write(self._sentence)
-        client.flush()
 
 # ----------------------------------------------------------------------------------------------------------------------
 
@@ -100,13 +69,17 @@ class ExampleValidatingAction (HttpAction):
 
         client.compose_headers()
         client.write("Parameters: " + str(client.params))
-        client.flush()
 
 # ----------------------------------------------------------------------------------------------------------------------
 
 # start the server
 RoutingHttpServer(hosts=[("0.0.0.0", 8080)],
-                  routes={ "/":         (ExampleAction, ),
-                           "/sentence": (ExampleArgsAction, {"sentence": "Hello, world! This is ExampleArgsAction!"}),
-                           #"/static":   ("(file:.*)", StaticHttpAction, {"fs_root": os.getcwd() + "/static"}),
-                           "/validate": ("(number:\d+)/(word:\w+)", ExampleValidatingAction) }).start()
+                  routes=[
+                           ["/", None, "elements.http.action.TestHttpAction"],
+
+                           ["/sentence", None, ExampleArgsAction, {"sentence": "Hello, world! This is ExampleArgsAction!"}],
+
+                           #["/static", "(file:.*)", "elements.http.action.StaticHttpAction", {"fs_root": os.getcwd() + "/static"}],
+
+                           ["/validate", "(number:\d+)/(word:\w+)", ExampleValidatingAction]
+                         ]).start()

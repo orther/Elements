@@ -7,10 +7,12 @@
 
 try:
     import cStringIO as StringIO
+
 except:
     import StringIO
 
 import datetime
+import decimal
 import mimetypes
 import os
 import random
@@ -21,68 +23,16 @@ import time
 import urllib
 import urlparse
 
+import settings
+
 from elements.core           import elements
 from elements.core.exception import ClientException
-from elements.core.exception import HttpException
 from elements.core.exception import ServerException
 from elements.async.client   import Client
 from elements.async.server   import Server
-
-# ----------------------------------------------------------------------------------------------------------------------
-# RESPONSE CODES
-# ----------------------------------------------------------------------------------------------------------------------
-
-HTTP_100 = "100 Continue"
-HTTP_101 = "101 Switching Protocols"
-HTTP_102 = "102 Processing"
-HTTP_200 = "200 OK"
-HTTP_201 = "201 Created"
-HTTP_202 = "202 Accepted"
-HTTP_203 = "203 Non-Authoritative Information"
-HTTP_204 = "204 No Content"
-HTTP_205 = "205 Reset Content"
-HTTP_206 = "206 Partial Content"
-HTTP_207 = "207 Multi-Status"
-HTTP_226 = "226 IM Used"
-HTTP_300 = "300 Multiple Choices"
-HTTP_301 = "301 Moved Permanently"
-HTTP_302 = "302 Found"
-HTTP_303 = "303 See Other"
-HTTP_304 = "304 Not Modified"
-HTTP_305 = "305 Use Proxy"
-HTTP_306 = "306 Reserved"
-HTTP_307 = "307 Temporary Redirect"
-HTTP_400 = "400 Bad Request"
-HTTP_401 = "401 Unauthorized"
-HTTP_402 = "402 Payment Required"
-HTTP_403 = "403 Forbidden"
-HTTP_404 = "404 Not Found"
-HTTP_405 = "405 Method Not Allowed"
-HTTP_406 = "406 Not Acceptable"
-HTTP_407 = "407 Proxy Authentication Required"
-HTTP_408 = "408 Request Timeout"
-HTTP_409 = "409 Conflict"
-HTTP_410 = "410 Gone"
-HTTP_411 = "411 Length Required"
-HTTP_412 = "412 Precondition Failed"
-HTTP_413 = "413 Request Entity Too Large"
-HTTP_414 = "414 Request-URI Too Long"
-HTTP_415 = "415 Unsupported Media Type"
-HTTP_416 = "416 Requested Range Not Satisfiable"
-HTTP_417 = "417 Expectation Failed"
-HTTP_422 = "422 Unprocessable Entity"
-HTTP_423 = "423 Locked"
-HTTP_424 = "424 Failed Dependency"
-HTTP_426 = "426 Upgrade Required"
-HTTP_500 = "500 Internal Server Error"
-HTTP_501 = "501 Not Implemented"
-HTTP_502 = "502 Bad Gateway"
-HTTP_503 = "503 Service Unavailable"
-HTTP_504 = "504 Gateway Timeout"
-HTTP_505 = "505 HTTP Version Not Supported"
-HTTP_506 = "506 Variant Also Negotiates"
-HTTP_507 = "507 Insufficient Storage"
-HTTP_510 = "510 Not Extended"
+from elements.http.action    import HttpAction
+from elements.http.action    import SecureHttpAction
+from elements.http           import response_code
 
 # ----------------------------------------------------------------------------------------------------------------------
 # ERROR CODES
@@ -98,143 +48,6 @@ FILE_READ_SIZE = 131070
 
 PERSISTENCE_KEEP_ALIVE = 1
 PERSISTENCE_PROTOCOL   = 2
-
-# ----------------------------------------------------------------------------------------------------------------------
-
-class HttpAction:
-
-    def __init__ (self, server, title="Method Not Allowed", response_code=HTTP_405):
-        """
-        Create a new HttpAction instance.
-
-        @param server        (HttpServer) The HttpServer instance.
-        @param title         (str)        The title to display when this core action handles a request.
-        @param response_code (str)        The response code to use when this core action handles a request.
-        """
-
-        self._server         = server
-        self.__response_code = response_code
-        self.__title         = title
-
-    # ------------------------------------------------------------------------------------------------------------------
-
-    def connect (self, client):
-        """
-        Handle a CONNECT request.
-
-        @param client (HttpClient) The HttpClient instance.
-        """
-
-        client.response_code = self.__response_code
-
-        client.compose_headers()
-        client.write("<h1>%s</h1>" % self.__title)
-        client.flush()
-
-    # ------------------------------------------------------------------------------------------------------------------
-
-    def delete (self, client):
-        """
-        Handle a DELETE request.
-
-        @param client (HttpClient) The HttpClient instance.
-        """
-
-        client.response_code = self.__response_code
-
-        client.compose_headers()
-        client.write("<h1>%s</h1>" % self.__title)
-        client.flush()
-
-    # ------------------------------------------------------------------------------------------------------------------
-
-    def get (self, client):
-        """
-        Handle a GET request.
-
-        @param client (HttpClient) The HttpClient instance.
-        """
-
-        client.response_code = self.__response_code
-
-        client.compose_headers()
-        client.write("<h1>%s</h1>" % self.__title)
-        client.flush()
-
-    # ------------------------------------------------------------------------------------------------------------------
-
-    def head (self, client):
-        """
-        Handle a HEAD request.
-
-        @param client (HttpClient) The HttpClient instance.
-        """
-
-        client.response_code = self.__response_code
-
-        client.compose_headers()
-        client.write("<h1>%s</h1>" % self.__title)
-        client.flush()
-
-    # ------------------------------------------------------------------------------------------------------------------
-
-    def options (self, client):
-        """
-        Handle a OPTIONS request.
-
-        @param client (HttpClient) The HttpClient instance.
-        """
-
-        client.response_code = self.__response_code
-
-        client.compose_headers()
-        client.write("<h1>%s</h1>" % self.__title)
-        client.flush()
-
-    # ------------------------------------------------------------------------------------------------------------------
-
-    def post (self, client):
-        """
-        Handle a POST request.
-
-        @param client (HttpClient) The HttpClient instance.
-        """
-
-        client.response_code = self.__response_code
-
-        client.compose_headers()
-        client.write("<h1>%s</h1>" % self.__title)
-        client.flush()
-
-    # ------------------------------------------------------------------------------------------------------------------
-
-    def put (self, client):
-        """
-        Handle a PUT request.
-
-        @param client (HttpClient) The HttpClient instance.
-        """
-
-        client.response_code = self.__response_code
-
-        client.compose_headers()
-        client.write("<h1>%s</h1>" % self.__title)
-        client.flush()
-
-    # ------------------------------------------------------------------------------------------------------------------
-
-    def trace (self, client):
-        """
-        Handle a TRACE request.
-
-        @param client (HttpClient) The HttpClient instance.
-        """
-
-        client.response_code = self.__response_code
-
-        client.compose_headers()
-        client.write("<h1>%s</h1>" % self.__title)
-        client.flush()
 
 # ----------------------------------------------------------------------------------------------------------------------
 
@@ -258,18 +71,18 @@ class HttpClient (Client):
         self._is_headers_written      = False               # indicates that the headers have been written
         self._max_persistent_requests = None                # maximum persistent requests allowed
         self._multipart_file          = None                # current multipart upload file
-        self._orig_flush              = self.flush          # original flush method
         self._orig_read_delimiter     = self.read_delimiter # original read delimiter method
         self._orig_write              = self.write          # original write method
         self._request_count           = 0                   # count of served requests (only useful if persistence is
                                                             # enabled)
+        self.session                  = None                # current session
 
         # files variable must exist because it's access in handle_shutdown(), and handle_shutdown() is always called,
         # even in the event that a timeout occurred before a request could physically be handled
         self.__files = []
 
         # read until we get the initial request line
-        self.read_delimiter("\r\n", self.handle_request, server._max_request_length)
+        self.read_delimiter("\r\n", self.handle_request, settings.http_max_request_length)
 
     # ------------------------------------------------------------------------------------------------------------------
 
@@ -307,6 +120,10 @@ class HttpClient (Client):
         if chunked_encoding:
             out_headers["Transfer-Encoding"] = "chunked"
 
+        if self.session:
+            # set session cookie
+            self.set_cookie(settings.http_session_cookie, self.session.session_id)
+
         # handle persistence
         if self._max_persistent_requests and self._request_count >= self._max_persistent_requests:
             self._persistence_type = None
@@ -329,14 +146,13 @@ class HttpClient (Client):
             self.write("\r\n")
 
         self.write("\r\n")
-        self.flush()
 
         if chunked_encoding:
-            # future flush and write operations must use a chunked encoding
-            self.flush = self.__chunked_flush
+            # future write operations must use a chunked encoding
             self.write = self.__chunked_write
 
-        self._is_headers_written = True
+        self.__is_chunked_encoded = True
+        self._is_headers_written  = True
 
     # ------------------------------------------------------------------------------------------------------------------
 
@@ -359,7 +175,7 @@ class HttpClient (Client):
 
             except:
                 # length required
-                self._server._error_actions[HTTP_411][1].get(self)
+                self.raise_response(response_code.HTTP_411)
 
                 return
 
@@ -397,14 +213,14 @@ class HttpClient (Client):
 
             # parse headers
             for header in data.rstrip().split("\r\n"):
-                header = header.split(": ")
+                header = header.split(": ", 1)
 
                 in_headers["HTTP_" + header[0].upper().replace("-", "_")] = header[1]
 
             # parse cookies
             if "HTTP_COOKIE" in in_headers:
                 for cookie in in_headers["HTTP_COOKIE"].split(";"):
-                    cookie = cookie.rstrip().split("=", 1)
+                    cookie = cookie.strip().split("=", 1)
 
                     in_cookies[cookie[0]] = cookie[1]
 
@@ -417,7 +233,13 @@ class HttpClient (Client):
 
         except:
             # bad request
-            self._server._error_actions[HTTP_400][1].get(self)
+            self.raise_response(response_code.HTTP_400)
+
+            return
+
+        if settings.http_session_autostart:
+            # auto-start session
+            self.start_session()
 
         # start content negotiation
         self.handle_content_negotiation()
@@ -434,7 +256,7 @@ class HttpClient (Client):
         """
 
         # bad request
-        self._server._error_actions[HTTP_400][1].get(self)
+        self.raise_response(response_code.HTTP_400)
 
     # ------------------------------------------------------------------------------------------------------------------
 
@@ -500,7 +322,7 @@ class HttpClient (Client):
 
             # open a temp file to store the upload
             chars     = "".join((string.letters, string.digits))
-            temp_name = "/".join((self._server._upload_dir, "".join([random.choice(chars) for x in xrange(0, 25)])))
+            temp_name = "/".join((settings.http_upload_dir, "".join([random.choice(chars) for x in xrange(0, 25)])))
 
             file = { "error":      None,
                      "filename":   disposition[pos:disposition.find("\"", pos)],
@@ -538,7 +360,7 @@ class HttpClient (Client):
 
         except:
             # bad request
-            self._server._error_actions[HTTP_400][1].get(self)
+            self.raise_response(response_code.HTTP_400)
 
         # read until we hit the boundary
         self.read_delimiter(self._multipart_boundary, self.handle_multipart_post_boundary)
@@ -565,7 +387,7 @@ class HttpClient (Client):
             return
 
         # bad request
-        self._server._error_actions[HTTP_400][1].get(self)
+        self.raise_response(response_code.HTTP_400)
 
     # ------------------------------------------------------------------------------------------------------------------
 
@@ -576,53 +398,58 @@ class HttpClient (Client):
         @param data (str) The data that has tentatively been found as the request line.
         """
 
+        self.__is_chunked_encoded = False
         self.__files              = []
-        self._is_headers_flushed  = False
+        self._is_headers_written  = False
         self._multipart_file      = None
         self._persistence_type    = None
         self._request_count      += 1
         self._static_file         = None
         self.content_type         = "text/html"
         self.files                = None
-        self.flush                = self._orig_flush
         self.in_cookies           = {}
+        self.in_headers           = { "SERVER_PROTOCOL": "HTTP/1.0" }
         self.out_cookies          = {}
         self.out_headers          = {}
         self.read_delimiter       = self._orig_read_delimiter
-        self.response_code        = HTTP_200
+        self.response_code        = response_code.HTTP_200
+        self.session              = None
         self.write                = self._orig_write
 
         # parse method, uri and protocol
         try:
             data                  = data.rstrip()
-            method, uri, protocol = data.split(" ")
+            method, uri, protocol = data.split(" ", 2)
 
         except:
             try:
-                method, uri = data.split(" ")
+                method, uri = data.split(" ", 1)
                 protocol    = "HTTP/1.0"
 
             except:
                 # bad request
-                self._server._error_actions[HTTP_400][1].get(self)
+                self.raise_response(response_code.HTTP_400)
 
                 return
 
-        # verify method and protocol
+        # verify request
         method   = method.upper()
         protocol = protocol.upper()
 
         if method not in ("CONNECT", "DELETE", "GET", "HEAD", "OPTIONS", "POST", "PUT", "TRACE"):
             # method not allowed
-            self._server._error_actions[HTTP_405][1].get(self)
+            self.raise_response(response_code.HTTP_405)
 
             return
 
         if protocol not in ("HTTP/1.0", "HTTP/1.1"):
             # http protocol not supported
-            self._server._error_actions[HTTP_505][1].get(self)
+            self.raise_response(response_code.HTTP_505)
 
             return
+
+        if not uri.startswith("/"):
+            uri = "/".join(("", uri))
 
         # initialize headers
         in_headers = { "HTTP_CONTENT_TYPE": "text/plain",
@@ -630,7 +457,7 @@ class HttpClient (Client):
                        "REMOTE_PORT":       self._client_address[1],
                        "REQUEST_METHOD":    method.upper(),
                        "REQUEST_URI":       uri,
-                       "SCRIPT_NAME":       uri,
+                       "REQUEST_URL":       uri,
                        "SERVER_ADDR":       self._server_address[0],
                        "SERVER_PORT":       self._server_address[1],
                        "SERVER_PROTOCOL":   protocol }
@@ -642,7 +469,7 @@ class HttpClient (Client):
             query_string               = uri[pos + 1:]
             params                     = urlparse.parse_qs(query_string, True)
             in_headers["QUERY_STRING"] = query_string
-            in_headers["SCRIPT_NAME"]  = uri[:pos]
+            in_headers["REQUEST_URI"]  = uri[:pos]
 
             for key, value in params.items():
                 if len(value) == 1:
@@ -656,7 +483,7 @@ class HttpClient (Client):
         self.in_headers = in_headers
 
         # read until we hit the end of the headers
-        self.read_delimiter("\r\n\r\n", self.handle_headers, self._server._max_headers_length)
+        self.read_delimiter("\r\n\r\n", self.handle_headers, settings.http_max_headers_length)
 
     # ------------------------------------------------------------------------------------------------------------------
 
@@ -665,8 +492,8 @@ class HttpClient (Client):
         This callback will be executed when this HttpClient instance is shutting down.
         """
 
-        # close the current multipart upload file pointer if one exists
         if self._multipart_file and not self._is_multipart_maxed:
+            # close the current multipart upload file pointer
             try:
                 self._multipart_file.close()
 
@@ -677,6 +504,14 @@ class HttpClient (Client):
         for file in self.__files:
             try:
                 os.unlink(file)
+
+            except:
+                pass
+
+        if self.session:
+            # save the session
+            try:
+                self.session.save()
 
             except:
                 pass
@@ -747,29 +582,24 @@ class HttpClient (Client):
             if len(data) > 0:
                 # more data to write
                 self.write(data)
-                self.flush()
 
-                return
+            else:
+                # finished reading file
+                self._static_file.close()
 
-            # finished reading file
-            self._static_file.close()
+                self._static_file = None
 
-            self._static_file = None
+        if self._chunked_write_buffer.tell() > 0:
+            self.__chunked_flush()
 
-            self.clear_events()
+            return
 
-        else:
-            if self._is_allowing_persistence and self._persistence_type:
-                # allowing another request
-                self.clear_write_buffer()
+        if self._is_allowing_persistence and self._persistence_type:
+            # allowing another request
+            self.clear_write_buffer()
 
-                # read until we hit the end of the headers
-                self.read_delimiter("\r\n", self.handle_request, self._server._max_request_length)
-
-                return
-
-            # clear the events so the server inits the shutdown sequence
-            self.clear_events()
+            # read until we hit the end of the headers
+            self.read_delimiter("\r\n", self.handle_request, settings.http_max_request_length)
 
     # ------------------------------------------------------------------------------------------------------------------
 
@@ -837,7 +667,7 @@ class HttpClient (Client):
 
                     self._multipart_file_size += len(chunk)
 
-                    if self._server._max_upload_size and self._server._max_upload_size < self._multipart_file_size:
+                    if settings.http_max_upload_size and settings.http_max_upload_size < self._multipart_file_size:
                         # upload is too big
                         file["error"] = ERROR_UPLOAD_MAX_SIZE
 
@@ -854,7 +684,7 @@ class HttpClient (Client):
                 return
 
             # boundary has not been found
-            if len(data) >= self._server._upload_buffer_size:
+            if len(data) >= settings.http_upload_buffer_size:
                 # flush the buffer to file
                 chunk = data[:-len(delimiter)]
 
@@ -869,7 +699,7 @@ class HttpClient (Client):
                 buffer.write(data[len(data) - len(delimiter):])
 
                 # check file size limit
-                if self._server._max_upload_size and self._server._max_upload_size < self._multipart_file_size and \
+                if settings.http_max_upload_size and settings.http_max_upload_size < self._multipart_file_size and \
                    not self._is_multipart_maxed:
                     # upload is too big
                     multipart_file.close()
@@ -877,9 +707,48 @@ class HttpClient (Client):
                     file["error"]            = ERROR_UPLOAD_MAX_SIZE
                     self._is_multipart_maxed = True
 
-        self._read_callback  = callback
-        self._read_delimiter = delimiter
-        self._read_max_bytes = max_bytes
+        self._events         |= self._server.EVENT_READ
+        self._read_callback   = callback
+        self._read_delimiter  = delimiter
+        self._read_max_bytes  = max_bytes
+
+    # ------------------------------------------------------------------------------------------------------------------
+
+    def raise_response (self, response_code):
+        """
+        Display a page for the response code.
+
+        @param response_code (str) The response code.
+        """
+
+        try:
+            action = self._server._response_actions[response_code]
+
+        except:
+            pos = response_code.find(" ")
+
+            if pos > -1:
+                raise ClientException("Missing action for response code: %s" % response_code[:pos])
+
+            else:
+                raise ClientException("Invalid response code: %s" % response_code)
+
+        # execute the action here so any exceptions can be caught by the server
+        getattr(action, self.in_headers.get("REQUEST_METHOD", "GET").lower())(self)
+
+    # ------------------------------------------------------------------------------------------------------------------
+
+    def redirect (self, url):
+        """
+        Redirect the request.
+
+        @param url (str) The URL.
+        """
+
+        self.out_headers["Location"] = url
+        self.response_code           = response_code.HTTP_307
+
+        self.compose_headers()
 
     # ------------------------------------------------------------------------------------------------------------------
 
@@ -903,7 +772,7 @@ class HttpClient (Client):
 
         if expires:
             cookie += "; expires=" + datetime.datetime.fromtimestamp(time.time() + expires) \
-                                             .strftime("%A, %d %B %Y %H:%M:%S GMT" + self._server._gmt_offset)
+                                             .strftime("%A, %d %B %Y %H:%M:%S GMT" + settings.http_gmt_offset)
 
         if http_only:
             cookie += "; HttpOnly"
@@ -950,7 +819,6 @@ class HttpClient (Client):
             # compose headers and write the first portion of the file
             self.compose_headers()
             self.write(file.read(FILE_READ_SIZE))
-            self.flush()
 
             return True
 
@@ -960,11 +828,64 @@ class HttpClient (Client):
 
     # ------------------------------------------------------------------------------------------------------------------
 
-    def __chunked_flush (self, last=True):
+    def start_session (self):
+        """
+        Start the session. This is only useful when http_session_autostart is disabled.
+        """
+
+        self.session = settings.http_session_class.load(self.in_cookies.get(settings.http_session_cookie, None))
+
+    # ------------------------------------------------------------------------------------------------------------------
+
+    def validate (self, types, *args):
+        """
+        Attempt to validate request parameters.
+
+        Note: This will strip all space from string parameters.
+
+        @param types (str) The expected types of the parameters.
+        """
+
+        values = []
+
+        if len(types) != len(args):
+            raise ClientException("Type list is not the same length as the parameter list")
+
+        try:
+            for i, param_type in enumerate(types):
+                param_value = self.params.get(args[i][0], args[i][1])
+
+                if param_value == args[i][1]:
+                    values.append(param_value)
+
+                    continue
+
+                try:
+                    if param_type == "i":
+                        values.append(int(param_value))
+
+                    elif param_type == "f":
+                        values.append(float(param_value))
+
+                    elif param_type == "d":
+                        values.append(decimal.Decimal(param_value))
+
+                    else:
+                        values.append(param_value.strip())
+
+                except:
+                    values.append(args[i][1])
+
+            return values
+
+        except IndexError:
+            raise ClientException("Invalid parameter type")
+
+    # ------------------------------------------------------------------------------------------------------------------
+
+    def __chunked_flush (self):
         """
         Notify the event manager that there is write data available.
-
-        @param last (bool) Indicates that this is the last chunk of data being flushed.
         """
 
         # flush using chunked transfer encoding
@@ -974,12 +895,7 @@ class HttpClient (Client):
         buffer.truncate(0)
 
         Client.write(self, "".join((hex(len(data))[2:], "\r\n", data, "\r\n")))
-
-        if last:
-            # this is the last chunk so write the ending chunk size followed by an empty set of footers
-            Client.write(self, "0\r\n\r\n\r\n")
-
-        Client.flush(self)
+        Client.write(self, "0\r\n")
 
     # ------------------------------------------------------------------------------------------------------------------
 
@@ -1003,11 +919,12 @@ class HttpRequest (Client):
         @param port   (int)    The port.
         """
 
-        self._host   = host
-        self._port   = port
-        self._server = server
-        self._socket = None
-        self.files   = None
+        self._basic_content_types = ["text/plain", "text/html"]
+        self._host                = host
+        self._port                = port
+        self._server              = server
+        self._socket              = None
+        self.files                = None
 
         self.reset()
 
@@ -1025,6 +942,19 @@ class HttpRequest (Client):
 
         # register as a client
         server.register_client(self)
+
+    # ------------------------------------------------------------------------------------------------------------------
+
+    def add_basic_content_type (self, content_type):
+        """
+        Add a content-type that will be stored-in memory as a normal response and handled with handle_finished().
+        Any returned content-types that are not listed as basic are written to file and handled with handle_download().
+
+        @param content_type (str) The content type.
+        """
+
+        if content_type not in self._basic_content_types:
+            self._basic_content_types.append(content_type)
 
     # ------------------------------------------------------------------------------------------------------------------
 
@@ -1080,7 +1010,7 @@ class HttpRequest (Client):
         @param data (str) The chunk length.
         """
 
-        length = int(data.strip().split(";")[0], 16)
+        length = int(data.strip().split(";", 1)[0], 16)
 
         if length > 0:
             # read until we get the entire chunk (add 2 bytes for CRLF)
@@ -1183,7 +1113,7 @@ class HttpRequest (Client):
 
                     if name != "SET_COOKIE":
                         # header assignment
-                        self.in_headers[name] = value
+                        self.in_headers[name] = value.strip()
 
                         continue
 
@@ -1355,7 +1285,6 @@ class HttpRequest (Client):
 
         self.write("\r\n")
         self.write(encoded_parameters)
-        self.flush()
 
         # read until we reach the end of the initial response line
         self.read_delimiter("\r\n", self.handle_response_code)
@@ -1381,11 +1310,12 @@ class HttpRequest (Client):
 
         self.content                 = StringIO.StringIO()
         self.content_encoding        = None
-        self.download                = None
+        self.content_type            = "text/plain"
         self.files                   = []
         self.in_cookies              = {}
         self.in_headers              = {}
         self.is_allowing_persistence = False
+        self.is_download             = False
         self.method                  = None
         self.out_cookies             = {}
         self.out_headers             = {}
@@ -1406,6 +1336,17 @@ class HttpRequest (Client):
         """
 
         self.out_cookies[name] = value
+
+    # ------------------------------------------------------------------------------------------------------------------
+
+    def set_cookies (self, cookies):
+        """
+        Merge multiple cookies.
+
+        @param cookies (dict) The cookies to merge.
+        """
+
+        self.out_cookies.update(cookies)
 
     # ------------------------------------------------------------------------------------------------------------------
 
@@ -1457,61 +1398,47 @@ class HttpRequest (Client):
 
 class HttpServer (Server):
 
-    def __init__ (self, gmt_offset="-5", upload_dir="/tmp", upload_buffer_size=50000, max_upload_size=None,
-                  max_request_length=5000, max_headers_length=10000, **kwargs):
+    def __init__ (self, *args, **kwargs):
         """
         Create a new HttpServer instance.
-
-        @param gmt_offset         (str) The GMT offset of the server.
-        @param upload_dir         (str) The absolute filesystem path to the directory where uploaded files will be
-                                        placed.
-        @param upload_buffer_size (int) The upload buffer size.
-        @param max_upload_size    (int) The maximum file upload size.
-        @param max_request_length (int) The maximum length of the initial request line.
-        @param max_headers_length (int) The maximum length for the headers.
         """
 
-        Server.__init__(self, **kwargs)
+        Server.__init__(self, *args, **kwargs)
 
-        self._gmt_offset         = gmt_offset
-        self._max_headers_length = max_headers_length
-        self._max_request_length = max_request_length
-        self._max_upload_size    = max_upload_size
-        self._upload_buffer_size = upload_buffer_size
-        self._upload_dir         = upload_dir
+        self._response_actions = {}
 
         # error actions
-        self._error_actions = { HTTP_400: (None, HttpAction(self, "400 Bad Request", HTTP_400)),
-                                HTTP_401: (None, HttpAction(self, "401 Unauthorized", HTTP_401)),
-                                HTTP_402: (None, HttpAction(self, "402 Payment Required", HTTP_402)),
-                                HTTP_403: (None, HttpAction(self, "403 Forbidden", HTTP_403)),
-                                HTTP_404: (None, HttpAction(self, "404 Not Found", HTTP_404)),
-                                HTTP_405: (None, HttpAction(self, "405 Method Not Allowed", HTTP_405)),
-                                HTTP_406: (None, HttpAction(self, "406 Not Acceptable", HTTP_406)),
-                                HTTP_407: (None, HttpAction(self, "407 Proxy Authentication Required", HTTP_407)),
-                                HTTP_408: (None, HttpAction(self, "408 Request Timeout", HTTP_408)),
-                                HTTP_409: (None, HttpAction(self, "409 Conflict", HTTP_409)),
-                                HTTP_410: (None, HttpAction(self, "410 Gone", HTTP_410)),
-                                HTTP_411: (None, HttpAction(self, "411 Length Required", HTTP_411)),
-                                HTTP_412: (None, HttpAction(self, "412 Precondition Failed", HTTP_412)),
-                                HTTP_413: (None, HttpAction(self, "413 Request Entity Too Large", HTTP_413)),
-                                HTTP_414: (None, HttpAction(self, "414 Request-URI Too Long", HTTP_414)),
-                                HTTP_415: (None, HttpAction(self, "415 Unsupported Media Type", HTTP_415)),
-                                HTTP_416: (None, HttpAction(self, "416 Requested Range Not Satisfiable", HTTP_416)),
-                                HTTP_417: (None, HttpAction(self, "417 Expectation Failed", HTTP_417)),
-                                HTTP_422: (None, HttpAction(self, "422 Unprocessable Entity", HTTP_422)),
-                                HTTP_423: (None, HttpAction(self, "423 Locked", HTTP_423)),
-                                HTTP_424: (None, HttpAction(self, "424 Failed Dependency", HTTP_424)),
-                                HTTP_426: (None, HttpAction(self, "426 Upgrade Required", HTTP_426)),
-                                HTTP_500: (None, HttpAction(self, "500 Internal Server Error", HTTP_500)),
-                                HTTP_501: (None, HttpAction(self, "501 Not Implemented", HTTP_501)),
-                                HTTP_502: (None, HttpAction(self, "502 Bad Gateway", HTTP_502)),
-                                HTTP_503: (None, HttpAction(self, "503 Service Unavailable", HTTP_503)),
-                                HTTP_504: (None, HttpAction(self, "504 Gateway Timeout", HTTP_504)),
-                                HTTP_505: (None, HttpAction(self, "505 HTTP Version Not Supported", HTTP_505)),
-                                HTTP_506: (None, HttpAction(self, "506 Variant Also Negotiates", HTTP_506)),
-                                HTTP_507: (None, HttpAction(self, "507 Insufficient Storage", HTTP_507)),
-                                HTTP_510: (None, HttpAction(self, "510 Not Extended", HTTP_510)) }
+        self.register_response_action(response_code.HTTP_400, HttpAction)
+        self.register_response_action(response_code.HTTP_401, HttpAction)
+        self.register_response_action(response_code.HTTP_402, HttpAction)
+        self.register_response_action(response_code.HTTP_403, HttpAction)
+        self.register_response_action(response_code.HTTP_404, HttpAction)
+        self.register_response_action(response_code.HTTP_405, HttpAction)
+        self.register_response_action(response_code.HTTP_406, HttpAction)
+        self.register_response_action(response_code.HTTP_407, HttpAction)
+        self.register_response_action(response_code.HTTP_408, HttpAction)
+        self.register_response_action(response_code.HTTP_409, HttpAction)
+        self.register_response_action(response_code.HTTP_410, HttpAction)
+        self.register_response_action(response_code.HTTP_411, HttpAction)
+        self.register_response_action(response_code.HTTP_412, HttpAction)
+        self.register_response_action(response_code.HTTP_413, HttpAction)
+        self.register_response_action(response_code.HTTP_414, HttpAction)
+        self.register_response_action(response_code.HTTP_415, HttpAction)
+        self.register_response_action(response_code.HTTP_416, HttpAction)
+        self.register_response_action(response_code.HTTP_417, HttpAction)
+        self.register_response_action(response_code.HTTP_422, HttpAction)
+        self.register_response_action(response_code.HTTP_423, HttpAction)
+        self.register_response_action(response_code.HTTP_424, HttpAction)
+        self.register_response_action(response_code.HTTP_426, HttpAction)
+        self.register_response_action(response_code.HTTP_500, HttpAction)
+        self.register_response_action(response_code.HTTP_501, HttpAction)
+        self.register_response_action(response_code.HTTP_502, HttpAction)
+        self.register_response_action(response_code.HTTP_503, HttpAction)
+        self.register_response_action(response_code.HTTP_504, HttpAction)
+        self.register_response_action(response_code.HTTP_505, HttpAction)
+        self.register_response_action(response_code.HTTP_506, HttpAction)
+        self.register_response_action(response_code.HTTP_507, HttpAction)
+        self.register_response_action(response_code.HTTP_510, HttpAction)
 
     # ------------------------------------------------------------------------------------------------------------------
 
@@ -1543,11 +1470,232 @@ class HttpServer (Server):
             return
 
         if not client._is_headers_written:
-            client.response_code = HTTP_500
+            client.raise_response(response_code.HTTP_500)
 
-            client.compose_headers()
-            client.write("<h1>Internal Server Error</h1>")
-            client.flush()
+    # ------------------------------------------------------------------------------------------------------------------
+
+    def handle_init (self):
+        """
+        This callback will be executed after the call to start().
+
+        Note: This will be called on all children processes. This will also be called on the parent process if no worker
+              processes are provided.
+        """
+
+        Server.handle_init(self)
+
+        # initialize databases
+        if hasattr(settings, "databases"):
+            from elements.model import database
+
+            database.init()
+
+    # ------------------------------------------------------------------------------------------------------------------
+
+    def register_response_action (self, response_code, action, args=dict()):
+        """
+        Register a custom response action.
+
+        @param response_code (str)   The response code under which we're registering the action.
+        @param action        (class) The custom action class.
+        @param args          (dict)  The action initialization arguments.
+        """
+
+        try:
+            code, title = response_code.split(" ", 1)
+
+            # test code
+            int(code)
+
+        except:
+            raise ServerException("Invalid error action response code: %s" % response_code)
+
+        try:
+            self._response_actions[response_code] = action(self, title=title, response_code=code, **args)
+
+        except Exception, e:
+            raise ServerException("Error action for response code %s failed to instantiate: %s" % (code, str(e)))
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+class RegexRoutingHttpClient (HttpClient):
+
+    def find_route (self, url, routes):
+        """
+        Find a matching route for the requested URL.
+
+        @param url    (str)   The next portion of the URL to match.
+        @param routes (tuple) The list of routes to check.
+        """
+
+        for route in routes:
+            match = route[0].match(url)
+
+            if match:
+                # update parameters with the matched group data
+                self.params.update(match.groupdict())
+
+                if type(route[1]) == tuple:
+                    # iterate sub-routes
+                    return self.find_route(url[len(match.group(0)):], route[1])
+
+                if route[2]:
+                    # this is a secure url
+                    if not route[1].check_auth(self):
+                        return
+
+                    if not route[1].check_credentials(self):
+                        return
+
+                # return matching action
+                return route[1]
+
+        # didn't find a match
+        return self._server._response_actions[response_code.HTTP_404]
+
+    # ------------------------------------------------------------------------------------------------------------------
+
+    def handle_dispatch (self):
+        """
+        This callback will be executed when the request has been parsed and needs dispatched to a handler.
+        """
+
+        action = self.find_route(self.in_headers["REQUEST_URI"], self._server._routes)
+
+        if action:
+            getattr(action, self.in_headers["REQUEST_METHOD"].lower())(self)
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+class RegexRoutingHttpServer (HttpServer):
+
+    def __init__ (self, routes, **kwargs):
+        """
+        Create a new RegexRoutingHttpServer instance.
+
+        @param routes (list/tuple) A list or tuple of route mappings.
+        """
+
+        HttpServer.__init__(self, **kwargs)
+
+        self._routes = routes
+
+    # ------------------------------------------------------------------------------------------------------------------
+
+    def handle_client (self, client_socket, client_address, server_address):
+        """
+        Register a new RegexRoutingHttpClient instance.
+
+        @param client_socket  (socket) The client socket.
+        @param client_address (tuple)  A two-part tuple containing the client ip and port.
+        @param server_address (tuple)  A two-part tuple containing the server ip and port to which the client has
+                                       made a connection.
+        """
+
+        self.register_client(RegexRoutingHttpClient(client_socket, client_address, self, server_address))
+
+    # ------------------------------------------------------------------------------------------------------------------
+
+    def handle_init (self):
+        """
+        This callback will be executed after the call to start().
+
+        Note: This will be called on all children processes. This will also be called on the parent process if no worker
+              processes are provided.
+        """
+
+        HttpServer.handle_init(self)
+
+        if type(self._routes) == str:
+            # the routes are a string, so we'll try to load it as if it's module.List format
+            self._routes = elements.include(self._routes)
+
+        self._routes = self.parse_routes([], self._routes)
+
+    # ------------------------------------------------------------------------------------------------------------------
+
+    def parse_routes (self, parent_url_patterns, routes):
+        """
+        Parse regex routes.
+
+        @param parent_url_patterns (list)       The list of parent url patterns.
+        @param routes              (list/tuple) The list or tuple of route mappings.
+        """
+
+        compiled_routes = []
+
+        for route in routes:
+            if type(route) not in (list, tuple):
+                raise ServerException("Expected a list or tuple for routes beneath %s" % parent_url_patterns)
+
+            if len(route) not in (2, 3):
+                raise ServerException("Invalid number of route arguments")
+
+            if type(route[0]) != str:
+                raise ServerException("Expected a string pattern for route beneath %s" % parent_url_patterns)
+
+            # compile the route pattern
+            pattern      = route[0]
+            url_patterns = list(parent_url_patterns)
+
+            url_patterns.append(route[0])
+
+            try:
+                # take simplified group names and convert them to regex-style group names
+                for match in re.findall("\((?P<name>[^:]+):(?P<pattern>.*?)(?<!\\\)\)", route[0], re.I):
+                    pattern = pattern.replace("(%s:%s)" % match, "(?P<%s>%s)" % match)
+
+                regex = re.compile(pattern)
+
+            except Exception, e:
+                raise ServerException("Regex pattern error for route %s: %s" % (url_patterns, str(e)))
+
+            if type(route[1]) in (list, tuple):
+                # parse sub-routes
+                compiled_routes.append((regex, tuple([route for route in self.parse_routes(url_patterns, route[1])])))
+
+                continue
+
+            if type(route[1]) == str:
+                # the action is a string, so we'll try to load it as if it's module.ClassName format
+                fullpath, action = route[1].rsplit(".", 1)
+
+                try:
+                    # load the action class
+                    action = getattr(__import__(fullpath, globals(), locals(), [action], -1), action)
+
+                except Exception, e:
+                    raise ServerException("Failed to import action class '%s': %s" % (route[1], str(e)))
+
+            else:
+                action = route[1]
+
+            action_kwargs = {}
+
+            if len(route) == 3:
+                # init arguments have been provided
+                action_kwargs = route[2]
+
+            if not issubclass(action, HttpAction):
+                raise ServerException("Action class '%s' must be a sub-class of HttpAction" % route[1])
+
+            if not issubclass(action, SecureHttpAction):
+                # this route does not require authentication
+                is_secure = False
+
+            else:
+                # this route requires authentication
+                is_secure = True
+
+            try:
+                compiled_routes.append((regex, action(server=self, title="Method Not Supported",
+                                                      response_code=response_code.HTTP_405,
+                                                      **action_kwargs), is_secure))
+
+            except Exception, e:
+                raise ServerException("Action class '%s' failed to instantiate: %s" % (route[1], str(e)))
+
+        return tuple(compiled_routes)
 
 # ----------------------------------------------------------------------------------------------------------------------
 
@@ -1558,8 +1706,20 @@ class RoutingHttpClient (HttpClient):
         This callback will be executed when the request has been parsed and needs dispatched to a handler.
         """
 
-        route           = self.in_headers["SCRIPT_NAME"].split(":", 1)
-        pattern, action = self._server._routes.get(route[0], self._server._error_actions[HTTP_404])
+        route = self.in_headers["REQUEST_URI"].split(self._server._split_seq, 1)
+
+        try:
+            pattern, action, is_secure = self._server._routes[route[0]]
+
+        except:
+            pattern, action, is_secure = None, self._server._response_actions[response_code.HTTP_404], False
+
+        if is_secure:
+            if not action.check_auth(self):
+                return
+
+            if not action.check_credentials(self):
+                return
 
         if not pattern:
             # route doesn't require validated data
@@ -1570,23 +1730,18 @@ class RoutingHttpClient (HttpClient):
         # check for expected data
         if len(route) == 1:
             # route didn't contain data, so it's automatically invalidated (serve 404 as if the url doesn't exist)
-            pattern, action = self._server._error_actions[HTTP_404]
-
-            getattr(action, self.in_headers["REQUEST_METHOD"].lower())(self)
+            getattr(self._server._response_actions[response_code.HTTP_404],
+                    self.in_headers["REQUEST_METHOD"].lower())(self)
 
             return
-
-        # update headers to reflect proper route details
-        self.in_headers["SCRIPT_NAME"], self.in_headers["SCRIPT_ARGS"] = route
 
         # validate data
         match = pattern.match(route[1])
 
         if not match:
             # data did not validate successfully (serve 404 as if the url doesn't exist)
-            pattern, action = self._server._error_actions[HTTP_404]
-
-            getattr(action, self.in_headers["REQUEST_METHOD"].lower())(self)
+            getattr(self._server._response_actions[response_code.HTTP_404],
+                    self.in_headers["REQUEST_METHOD"].lower())(self)
 
             return
 
@@ -1599,86 +1754,18 @@ class RoutingHttpClient (HttpClient):
 
 class RoutingHttpServer (HttpServer):
 
-    def __init__ (self, routes, **kwargs):
+    def __init__ (self, routes, split_seq=":", **kwargs):
         """
         Create a new RoutingHttpServer instance.
 
-        @param routes (dict) A key->(validation, route) mapping.
+        @param routes    (dict) A key->(validation, route) mapping.
+        @param split_seq (str)  A list of characters around which the URL will be split to determine the route.
         """
 
         HttpServer.__init__(self, **kwargs)
 
-        self._routes = {}
-
-        if type(routes) != dict:
-            raise ServerException("Routes must be an instance of dict")
-
-        # compile routes
-        for script_name, details in routes.items():
-            if type(script_name) != str:
-                raise ServerException("Invalid route")
-
-            if type(details) in (list, tuple):
-                if type(details[0]) == str:
-                    pattern       = details[0]
-                    action        = details[1]
-                    action_kwargs = dict()
-
-                    if len(details) == 3:
-                        action_kwargs = details[2]
-
-                else:
-                    pattern       = None
-                    action        = details[0]
-                    action_kwargs = dict()
-
-                    if len(details) == 2:
-                        action_kwargs = details[1]
-
-                try:
-                    if not issubclass(action, HttpAction):
-                        raise ServerException("Action for route '%s' must be a sub-class of HttpAction" % script_name)
-
-                except ServerException:
-                    raise
-
-                except Exception, e:
-                    raise ServerException("Action for route '%s' must be a sub-class of HttpAction" % script_name)
-
-                if pattern:
-                    # this route requires a pattern
-                    if type(pattern) != str:
-                        raise ServerException("Regex pattern for route '%s' must be a string" % script_name)
-
-                    try:
-                        # take simplified group names and convert them to regex-style group names
-                        for match in re.findall("\((?P<name>[^:]+):(?P<pattern>.*?)(?<!\\\)\)", pattern, re.I):
-                            pattern = pattern.replace("(%s:%s)" % match, "(?P<%s>%s)" % match)
-
-                        pattern = re.compile(pattern)
-
-                    except Exception, e:
-                        raise ServerException("Regex pattern error for route '%s': %s" % (script_name, str(e)))
-
-                    try:
-                        self._routes[script_name] = (pattern, action(server=self, title="Method Not Supported",
-                                                                     response_code=HTTP_405, **action_kwargs))
-
-                    except Exception, e:
-                        raise ServerException("Action for route '%s' failed to instantiate: %s" % (script_name,
-                                                                                                   str(e)))
-
-                else:
-                    # no pattern for this route
-                    try:
-                        self._routes[script_name] = (None, action(server=self, title="Method Not Supported",
-                                                                  response_code=HTTP_405, **action_kwargs))
-
-                    except Exception, e:
-                        raise ServerException("Action for route '%s' failed to instantiate: %s" % (script_name, str(e)))
-
-            else:
-                raise ServerException("Route details must be a tuple or list for route '%s'" % script_name)
+        self._routes    = routes
+        self._split_seq = split_seq
 
     # ------------------------------------------------------------------------------------------------------------------
 
@@ -1694,34 +1781,88 @@ class RoutingHttpServer (HttpServer):
 
         self.register_client(RoutingHttpClient(client_socket, client_address, self, server_address))
 
-# ----------------------------------------------------------------------------------------------------------------------
-
-class StaticHttpAction (HttpAction):
-
-    def __init__ (self, fs_root, param="file", **kwargs):
-        """
-        Create a new StaticHttpAction instance.
-
-        @param fs_root (str) The absolute filesystem path from which all static files will be served.
-        @param param   (str) The parameter name to pull that contains the filename to serve.
-        """
-
-        HttpAction.__init__(self, **kwargs)
-
-        self._fs_root = fs_root
-        self._param   = param
-
     # ------------------------------------------------------------------------------------------------------------------
 
-    def get (self, client):
+    def handle_init (self):
         """
-        Handle a GET request.
+        This callback will be executed after the call to start().
 
-        @param client (HttpClient) The HttpClient instance.
+        Note: This will be called on all children processes. This will also be called on the parent process if no worker
+              processes are provided.
         """
 
-        file = os.path.realpath("/".join((self._fs_root, client.params.get(self._param, "").strip(" /\\"))))
+        HttpServer.handle_init(self)
 
-        if not file.startswith(self._fs_root) or file == self._fs_root or not client.serve_static_file(file):
-            # wrong location or file doesn't exist/can't be opened for reading
-            client._server._error_actions[HTTP_404][1].get(client)
+        routes       = self._routes
+        self._routes = {}
+
+        if type(routes) == str:
+            # the routes are a string, so we'll try to load it as if it's module.List format
+            routes = elements.include(routes)
+
+        for route in routes:
+            try:
+                script_name, pattern, action, action_kwargs = route
+
+            except:
+                try:
+                    script_name, pattern, action = route
+
+                    action_kwargs = dict()
+
+                except:
+                    raise ServerException("Invalid route")
+
+            if type(script_name) != str:
+                raise ServerException("Invalid route")
+
+            if pattern and type(pattern) != str:
+                raise ServerException("Invalid validation pattern for route '%s'" % script_name)
+
+            if action_kwargs and type(action_kwargs) != dict:
+                raise ServerException("Invalid action arguments for route '%s'" % script_name)
+
+            if type(action) == str:
+                # the action is a string, so we'll try to load it as if it's module.ClassName format
+                fullpath, action = action.rsplit(".", 1)
+
+                try:
+                    # load the action class
+                    action = getattr(__import__(fullpath, globals(), locals(), [action], -1), action)
+
+                except Exception, e:
+                    raise ServerException("Failed to import action class '%s': %s" % (route[2], str(e)))
+
+            if not issubclass(action, HttpAction):
+                raise ServerException("Action for route '%s' must be a sub-class of HttpAction" % script_name)
+
+            if not issubclass(action, SecureHttpAction):
+                # this route does not require authentication
+                is_secure = False
+
+            else:
+                # this route requires authentication
+                is_secure = True
+
+            if pattern:
+                # this route requires a pattern
+                try:
+                    # take simplified group names and convert them to regex-style group names
+                    for match in re.findall("\((?P<name>[^:]+):(?P<pattern>.*?)(?<!\\\)\)", pattern, re.I):
+                        pattern = pattern.replace("(%s:%s)" % match, "(?P<%s>%s)" % match)
+
+                    regex = re.compile(pattern)
+
+                except Exception, e:
+                    raise ServerException("Regex pattern error for route '%s': %s" % (script_name, str(e)))
+
+            else:
+                regex = None
+
+            try:
+                self._routes[script_name] = (regex, action(server=self, title="Method Not Supported",
+                                                           response_code=response_code.HTTP_405,
+                                                           **action_kwargs), is_secure)
+
+            except Exception, e:
+                raise ServerException("Action for route '%s' failed to instantiate: %s" % (script_name, str(e)))

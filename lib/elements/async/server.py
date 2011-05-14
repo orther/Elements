@@ -33,7 +33,7 @@ from elements.core.exception import ServerException
 class Server:
 
     def __init__ (self, hosts=None, daemonize=False, user=None, group=None, umask=None, chroot=None, long_running=False,
-                  loop_interval=1, timeout=None, timeout_interval=10, worker_count=0, channel_count=1,
+                  loop_interval=1, timeout=None, timeout_interval=10, worker_count=0, channel_count=0,
                   event_manager=None, print_settings=True):
         """
         Create a new Server instance.
@@ -67,29 +67,27 @@ class Server:
         self._group                    = group            # process group
         self._hosts                    = []               # host client/server sockets
         self._is_daemon                = daemonize        # indicates that this is running as a daemon
+        self._is_graceful_shutdown     = False            # indicates that the current shutdown request is graceful
         self._is_listening             = False            # indicates that this process is listening on all hosts
         self._is_long_running          = long_running     # indicates that clients are long-running
         self._is_parent                = True             # indicates that this process is the parent
         self._is_shutting_down         = False            # indicates that this server is shutting down
-        self._is_serving_client        = False            # indicates that a client is being served
         self._loop_interval            = loop_interval    # the interval in seconds between calling handle_loop()
+        self._parent_pid               = os.getpid()      # the parent process id
         self._print_settings           = print_settings   # indicates that the settings should be printed to the console
         self._timeout                  = timeout          # the timeout in seconds for a client to be removed
         self._timeout_interval         = timeout_interval # the interval in seconds between checking for idle clients
         self._umask                    = umask            # process umask
         self._user                     = user             # process user
         self._worker_count             = worker_count     # count of worker processes
-
-        # channel count must be at least 1 since channels are used to determine child status
-        if self._channel_count < 1:
-            self._channel_count = 1
+        self._workers                  = []               # list of worker process ids
 
         # choose event manager
         if hasattr(select, "epoll") and (event_manager is None or event_manager == "epoll"):
-            self._event_manager = EPollEventManager(self)
+            self._event_manager = EPollEventManager
 
         elif hasattr(select, "kqueue") and (event_manager is None or event_manager == "kqueue"):
-            self._event_manager = KQueueEventManager(self)
+            self._event_manager = KQueueEventManager
             self._worker_count  = 0
 
             if worker_count > 0:
@@ -97,54 +95,13 @@ class Server:
                       "so workers have been disabled. If you want that ability, you must use the Select event manager."
 
         elif hasattr(select, "poll") and (event_manager is None or event_manager == "poll"):
-            self._event_manager = PollEventManager(self)
+            self._event_manager = PollEventManager
 
         elif hasattr(select, "select") and (event_manager is None or event_manager == "select"):
-            self._event_manager = SelectEventManager(self)
+            self._event_manager = SelectEventManager
 
         else:
             raise ServerException("Could not find a suitable event manager for your platform")
-
-        # initialize the event manager methods and events
-        self._event_manager_modify     = self._event_manager.modify
-        self._event_manager_poll       = self._event_manager.poll
-        self._event_manager_register   = self._event_manager.register
-        self._event_manager_unregister = self._event_manager.unregister
-
-        # update this server with the proper events
-        self.EVENT_READ   = self._event_manager.EVENT_READ
-        self.EVENT_WRITE  = self._event_manager.EVENT_WRITE
-
-        # update the client module with the proper events
-        client.EVENT_LINGER = self._event_manager.EVENT_LINGER
-        client.EVENT_READ   = self._event_manager.EVENT_READ
-        client.EVENT_WRITE  = self._event_manager.EVENT_WRITE
-
-        # change group
-        if group:
-            try:
-                try:
-                    import grp
-                except:
-                    raise ServerException("Cannot set group, because this platform does not support this feature")
-
-                os.setgid(grp.getgrnam(group).gr_gid)
-
-            except Exception, e:
-                raise ServerException("Cannot set group to '%s': %s" % (group, e))
-
-        # change user
-        if user:
-            try:
-                try:
-                    import pwd
-                except:
-                    raise ServerException("Cannot set user, because this platform does not support this feature")
-
-                os.setuid(pwd.getpwnam(user).pw_uid)
-
-            except Exception, e:
-                raise ServerException("Cannot set user to '%s': %s" % (user, e))
 
         # change directory
         if chroot:
@@ -175,14 +132,58 @@ class Server:
             if os.fork():
                 os._exit(0)
 
+            self.handle_post_daemonize()
+
+        # initialize the event manager methods and events
+        self._event_manager            = self._event_manager(self)
+        self._event_manager_modify     = self._event_manager.modify
+        self._event_manager_poll       = self._event_manager.poll
+        self._event_manager_register   = self._event_manager.register
+        self._event_manager_unregister = self._event_manager.unregister
+
+        # update this server with the proper events
+        self.EVENT_READ   = self._event_manager.EVENT_READ
+        self.EVENT_WRITE  = self._event_manager.EVENT_WRITE
+
+        # update the client module with the proper events
+        client.EVENT_LINGER = self._event_manager.EVENT_LINGER
+        client.EVENT_READ   = self._event_manager.EVENT_READ
+        client.EVENT_WRITE  = self._event_manager.EVENT_WRITE
+
         # add all hosts
         if hosts:
             for host in hosts:
                 self.add_host(*host)
 
+        # change group
+        if group:
+            try:
+                try:
+                    import grp
+                except:
+                    raise ServerException("Cannot set group, because this platform does not support this feature")
+
+                os.setgid(grp.getgrnam(group).gr_gid)
+
+            except Exception, e:
+                raise ServerException("Cannot set group to '%s': %s" % (group, e))
+
+        # change user
+        if user:
+            try:
+                try:
+                    import pwd
+                except:
+                    raise ServerException("Cannot set user, because this platform does not support this feature")
+
+                os.setuid(pwd.getpwnam(user).pw_uid)
+
+            except Exception, e:
+                raise ServerException("Cannot set user to '%s': %s" % (user, e))
+
         # register signal handlers
         if platform.system() != "Windows":
-            signal.signal(signal.SIGCHLD, self.handle_signal)
+            #signal.signal(signal.SIGCHLD, self.handle_signal)
             signal.signal(signal.SIGHUP,  self.handle_signal)
 
         signal.signal(signal.SIGINT,  self.handle_signal)
@@ -196,6 +197,8 @@ class Server:
 
         @param ip   (str) A hostname or ip address.
         @param port (int) The port.
+
+        @return (HostClient) The HostClient instance.
         """
 
         try:
@@ -208,7 +211,11 @@ class Server:
             host.bind((ip, port))
             host.listen(socket.SOMAXCONN)
 
-            self.register_host(HostClient(host, (ip, port), self))
+            client = HostClient(host, (ip, port), self)
+
+            self._hosts.append(client)
+
+            return client
 
         except socket.error, e:
             raise HostException("Cannot add host on ip '%s' port '%d': %s" % (ip, port, e[1]))
@@ -279,7 +286,10 @@ class Server:
 
     def handle_init (self):
         """
-        This callback will be executed during the start of the process immediately before the processing loop starts.
+        This callback will be executed after the call to start().
+
+        Note: This will be called on all worker processes. This will also be called on the parent process if no worker
+              processes are provided.
         """
 
         pass
@@ -290,10 +300,19 @@ class Server:
         """
         This callback will be executed at the top of each event manager loop.
 
-        @return (object) A list of modified clients (or an empty list), if processing should continue, otherwise False.
+        @return (list) A list of modified clients (or an empty list).
         """
 
         return []
+
+    # ------------------------------------------------------------------------------------------------------------------
+
+    def handle_post_daemonize (self):
+        """
+        This callback will be executed after the parent process daemonizes.
+        """
+
+        pass
 
     # ------------------------------------------------------------------------------------------------------------------
 
@@ -310,21 +329,24 @@ class Server:
 
             return
 
-        if code != signal.SIGCHLD:
-            self._is_shutting_down = True
+        if self._is_parent:
+            # no matter what, if we're the parent we want all worker processes to shutdown, either permanently
+            # or for a restart
+            self.restart()
+
+            if code in (signal.SIGHUP, signal.SIGTERM):
+                return
+
+        if self._is_shutting_down:
+            # a second ctrl+c was sent, let's forcefully shutdown
+            self._is_graceful_shutdown = False
 
             return
 
-        # allow a worker process to exit
-        pid, status = os.wait()
+        self._is_graceful_shutdown = True
+        self._is_shutting_down     = True
 
-        if pid in self._channels:
-            for channel in self._channels[pid]:
-                self.unregister_client(channel)
-
-            del self._channels[pid]
-
-        self.handle_worker_exited(pid, status)
+        return
 
     # ------------------------------------------------------------------------------------------------------------------
 
@@ -336,8 +358,6 @@ class Server:
         clients      = []
         now          = time()
         minimum_time = now - self._timeout
-
-        EVENT_READ = self.EVENT_READ
 
         # iterate all clients and find the ones that are timed out/idle
         # execute the timeout callback and determine what to do
@@ -369,7 +389,17 @@ class Server:
         @param status (int) The exit status.
         """
 
-        pass
+        if pid in self._workers:
+            self._workers.remove(pid)
+
+        if pid in self._channels:
+            for channel in self._channels[pid]:
+                self.unregister_client(channel)
+
+            del self._channels[pid]
+
+        if not self._is_shutting_down:
+            self.spawn_worker()
 
     # ------------------------------------------------------------------------------------------------------------------
 
@@ -380,7 +410,7 @@ class Server:
         @param status (bool) The listening status.
         """
 
-        if self._is_listening == status:
+        if self._is_listening == status or len(self._hosts) == 0:
             return
 
         if status:
@@ -415,21 +445,26 @@ class Server:
 
         self._clients[client._fileno] = client
 
-        if not client._is_channel or not client._is_blocking:
+        if not client._is_blocking:
             self._event_manager.register(client._fileno, client._events)
 
-            self._is_serving_client = True
+        if self._is_long_running and not client._is_channel and not client._is_host:
+            # we're serving long-running requests so we must unregister the host filenos so no more clients can use
+            # this process until the current client is finished
+            for host in self._hosts:
+                self._event_manager.unregister(host._fileno)
 
     # ------------------------------------------------------------------------------------------------------------------
 
-    def register_host (self, host):
+    def restart (self):
         """
-        Register a host.
-
-        @param host (HostClient) The host client.
+        Send a restart request to all worker processes.
         """
 
-        self._hosts.append(host)
+        for pid in self._workers:
+            # we have HUP and TERM registered because HUP is not legal on Windows
+            # both signals result in the same action
+            os.kill(pid, signal.SIGTERM)
 
     # ------------------------------------------------------------------------------------------------------------------
 
@@ -446,7 +481,7 @@ class Server:
             return
 
         # remove the sigchld handler
-        signal.signal(signal.SIGCHLD, signal.SIG_IGN)
+        #signal.signal(signal.SIGCHLD, signal.SIG_IGN)
 
         # unregister and shutdown all clients
         for client in self._clients.values():
@@ -456,19 +491,15 @@ class Server:
             return
 
         # wait for all worker processes to exit
-        for pid in self._channels:
+        for pid in self._workers:
             try:
                 os.kill(pid, signal.SIGINT)
 
             except:
                 pass
 
-        for pid in self._channels:
-            try:
-                self.handle_worker_exited(*os.wait())
-
-            except:
-                pass
+        for pid in self._workers:
+            os.wait()
 
     # ------------------------------------------------------------------------------------------------------------------
 
@@ -501,6 +532,7 @@ class Server:
 
         if pid:
             # initialize and register worker channels
+            self._workers.append(pid)
             self.__register_channels(self.handle_channels(pid, parent_sockets))
 
             return
@@ -549,6 +581,7 @@ class Server:
                 print "+---------------------------------------------------------------+"
                 print "| Elements v0.1.1 Initialized                                   |"
                 print "+---------------------------------------------------------------+"
+
                 print "| Daemonized:          %-40s |" % self._is_daemon
                 print "| Event manager:       %-40s |" % self._event_manager.__class__.__name__
                 print "| Workers:             %-40d |" % self._worker_count
@@ -587,52 +620,86 @@ class Server:
         # we cache some methods/vars locally to avoid dereferencing in each loop which could potentially be
         # thousands of times per second
         clients                = self._clients
-        is_shutting_down       = False
+        is_graceful_shutdown   = self._is_graceful_shutdown
+        is_shutting_down       = self._is_shutting_down
         loop_check             = 0
         modify_func            = self._event_manager_modify
         poll_func              = self._event_manager_poll
+        shutdown_check         = 0
         timeout_check          = 0
         unregister_func        = self._event_manager_unregister
         unregister_client_func = self.unregister_client
 
-        # initialize process
-        self.handle_init()
+        if not self._is_parent or self._worker_count == 0:
+            # post start initialization
+            self.handle_init()
 
         # loop until the server is going to shutdown
-        while not is_shutting_down:
+        while not is_shutting_down or is_graceful_shutdown:
             now = time()
 
             try:
-                # execute a loop callback at most once per second
-                if now - self._loop_interval > loop_check:
-                    is_shutting_down = self._is_shutting_down
+                if now - 1 > shutdown_check:
+                    # check shutdown status and for exiting worker processes
+                    is_graceful_shutdown = self._is_graceful_shutdown
+                    is_shutting_down     = self._is_shutting_down
+                    shutdown_check       = now
 
-                    try:
-                        loop_check = now
+                    if is_shutting_down:
+                        if self._is_listening:
+                            self.listen(False)
 
-                        loop_clients = self.handle_loop()
+                        if self._is_parent and len(self._workers) > 0:
+                            # we cannot exit if we're the parent and there are child processes still running
+                            pass
 
-                        if loop_clients == False:
-                            # the loop callback is telling us to shutdown
+                        elif len(filter(lambda x: not x._is_host and not x._is_channel, self._clients.values())) == 0:
+                            # we have no regular clients connected so we can shutdown
                             break
 
-                        # update the events for any clients that were changed during the loop handler
-                        for client in loop_clients:
-                            modify_func(client._fileno, client._events)
+                    while self._is_parent and len(self._workers) > 0:
+                        # check for exiting child processes
+                        pid, status = os.waitpid(0, os.WNOHANG)
 
-                        # execute a timeout callback at most every [timeout interval] seconds
-                        if self._timeout and now - self._timeout_interval > timeout_check:
+                        if not pid:
+                            break
+
+                        try:
+                            self.handle_worker_exited(pid, status)
+
+                        except Exception, e:
+                            # an unhandled exception has been caught
+                            self.handle_exception(e)
+
+                    # execute a timeout callback at most every [timeout interval] seconds
+                    if self._timeout and now - self._timeout_interval > timeout_check:
+                        try:
                             timeout_check = now
 
                             # update the events for any clients that have timed out and are still going to be processed
                             for client in self.handle_timeout_check():
                                 modify_func(client._fileno, client._events)
 
-                    except Exception, e:
-                        # an unhandled exception has been caught
-                        self.handle_exception(e)
+                        except Exception, e:
+                            # an unhandled exception has been caught
+                            self.handle_exception(e)
 
-                        continue
+                            continue
+
+                    # execute a loop callback at most once per second
+                    if now - self._loop_interval > loop_check:
+                        try:
+                            loop_check = now
+
+                            # update the events for any clients that were changed during the loop handler
+                            for client in self.handle_loop():
+                                modify_func(client._fileno, client._events)
+
+                        except Exception, e:
+                            # an unhandled exception has been caught
+                            self.handle_exception(e)
+
+                            continue
 
                 # iterate over all clients that have an active event
                 for fileno, events in poll_func():
@@ -720,9 +787,22 @@ class Server:
             except:
                 pass
 
-        self._is_serving_client = False
+        if self._is_long_running and not client._is_channel and not client._is_host:
+            # we're serving long-running requests so we must reregister the host filenos that we removed when the
+            # current client connected
+            for host in self._hosts:
+                try:
+                    self._event_manager.register(host._fileno, host._events)
 
-        self._event_manager_unregister(client._fileno)
+                except:
+                    pass
+
+        try:
+            self._event_manager_unregister(client._fileno)
+
+        except:
+            # some event managers auto-remove a descriptor when it is closed, which may cause an exception to be thrown
+            pass
 
         del self._clients[client._fileno]
 
@@ -750,18 +830,18 @@ class Server:
 
         self._hosts.remove(host)
 
-        self.listen(True)
+        if len(self._hosts) > 0:
+            self.listen(True)
 
     # ------------------------------------------------------------------------------------------------------------------
 
-    def write_channel (self, data, channel_index=0, pid=0, flush=True):
+    def write_channel (self, data, channel_index=0, pid=0):
         """
         Write data to a channel.
 
-        @param data          (str)  The data.
-        @param channel_index (int)  The channel index.
-        @param pid           (int)  The process id.
-        @param flush         (bool) Indicates that the data should be flushed to the channel immediately.
+        @param data          (str) The data.
+        @param channel_index (int) The channel index.
+        @param pid           (int) The process id.
 
         @return (str) If the channel is blocking, the response will be returned immediately. Otherwise nothing is
                       returned.
@@ -773,13 +853,7 @@ class Server:
         except KeyError:
             raise ChannelException("Invalid pid or channel index")
 
-        if channel._is_blocking:
-            return channel.write(data)
-
-        channel.write(data)
-
-        if flush:
-            channel.flush()
+        return channel.write(data)
 
     # ------------------------------------------------------------------------------------------------------------------
 
