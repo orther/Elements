@@ -244,7 +244,7 @@ class DatabaseModelMetaclass (type):
             connection = meta.db.connection()
             cursor     = connection.cursor()
 
-            cursor.execute("SELECT * FROM \"%s\" LIMIT 1" % meta.table)
+            cursor.execute("SELECT * FROM `%s` LIMIT 1" % meta.table)
 
             [meta.columns.append(column[0]) for column in cursor.description]
 
@@ -392,7 +392,7 @@ class DatabaseModel:
 
             cursor = connection.cursor()
 
-            cursor.execute("DELETE FROM \"" + meta.table + "\" WHERE " + meta.primary_key + " = %s",
+            cursor.execute("DELETE FROM `" + meta.table + "` WHERE " + meta.primary_key + " = %s",
                            (values[meta.primary_key],))
 
             return cursor.rowcount > 0
@@ -462,7 +462,7 @@ class DatabaseModel:
 
             cursor = connection.cursor()
 
-            cursor.execute("SELECT * FROM \"" + meta.table + "\" WHERE " + meta.primary_key + " = %s", (id,))
+            cursor.execute("SELECT * FROM `" + meta.table + "` WHERE " + meta.primary_key + " = %s", (id,))
 
             record = cursor.fetchone()
 
@@ -543,7 +543,7 @@ class DatabaseModel:
 
                 up_values.append(values[meta.primary_key])
 
-                cursor.execute("UPDATE \"" + meta.table + "\" SET " + ",".join(up_keys) + " WHERE " + \
+                cursor.execute("UPDATE `" + meta.table + "` SET " + ",".join(up_keys) + " WHERE " + \
                                meta.primary_key + " = %s", up_values)
 
             else:
@@ -560,7 +560,7 @@ class DatabaseModel:
                     in_keys.append(key)
                     in_values.append(value)
 
-                cursor.execute("INSERT INTO \"" + meta.table + "\" (" + ",".join(in_keys) + ") VALUES (" + \
+                cursor.execute("INSERT INTO `" + meta.table + "` (`" + "`,`".join(in_keys) + "`) VALUES (" + \
                                ",".join(in_fields) + ")", in_values)
 
             return cursor.rowcount > 0
@@ -710,7 +710,7 @@ class DatabaseModelQuery:
         self._limit      = None
         self._offset     = None
         self._order      = None
-        self._query      = "SELECT * FROM \"" + cls.Meta.table + "\" WHERE"
+        self._query      = "SELECT * FROM `" + cls.Meta.table + "` WHERE"
         self._query_type = " " + query_type
         self._values     = []
 
