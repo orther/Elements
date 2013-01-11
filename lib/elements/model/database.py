@@ -538,11 +538,16 @@ class DatabaseModel:
                     if key == meta.primary_key or key in meta.model.Meta.read_only:
                         continue
 
+                    if key == "key":
+                        key = "`key`"
+
                     up_keys.append(key + "=%s")
                     up_values.append(value)
 
                 up_values.append(values[meta.primary_key])
 
+                print "UPDATE `" + meta.table + "` SET " + ",".join(up_keys) + " WHERE " + meta.primary_key + " = %s", up_values
+                exit()
                 cursor.execute("UPDATE `" + meta.table + "` SET " + ",".join(up_keys) + " WHERE " + \
                                meta.primary_key + " = %s", up_values)
 
@@ -736,10 +741,10 @@ class DatabaseModelQuery:
 
             if value is None:
                 if operator == "=":
-                    self._query += " %s IS NULL" % field
+                    self._query += " `%s` IS NULL" % field
 
                 else:
-                    self._query += " %s IS NOT NULL" % field
+                    self._query += " `%s` IS NOT NULL" % field
 
             elif type(value) in (tuple, list):
                 ins = []
@@ -749,32 +754,32 @@ class DatabaseModelQuery:
                     self._values.append(val)
 
                 if operator == "=":
-                    self._query += (" %s IN (" % field) + ",".join(ins) + ")"
+                    self._query += (" `%s` IN (" % field) + ",".join(ins) + ")"
 
                 else:
-                    self._query += (" %s NOT IN (" % field) + ",".join(ins) + ")"
+                    self._query += (" `%s` NOT IN (" % field) + ",".join(ins) + ")"
 
             elif type(value) == bool:
                 if value:
-                    self._query += " %s" % field
+                    self._query += " `%s`" % field
 
                 else:
-                    self._query += " NOT %s" % field
+                    self._query += " NOT `%s`" % field
 
             elif wrap:
                 if type(value) == str and value.startswith("@"):
-                    self._query += " %s(%s) %s %s(%s)" % (wrap, field, operator, wrap, value[1:])
+                    self._query += " %s(`%s`) %s %s(%s)" % (wrap, field, operator, wrap, value[1:])
 
                 else:
-                    self._query += " %s(%s) %s %s(%s)" % (wrap, field, operator, wrap, "%s")
+                    self._query += " %s(`%s`) %s %s(%s)" % (wrap, field, operator, wrap, "%s")
 
                     self._values.append(value)
 
             elif type(value) == str and value.startswith("@"):
-                self._query += " %s %s %s" % (field, operator, value[1:])
+                self._query += " `%s` %s %s" % (field, operator, value[1:])
 
             else:
-                self._query += " %s %s %s" % (field, operator, "%s")
+                self._query += " `%s` %s %s" % (field, operator, "%s")
 
                 self._values.append(value)
 
